@@ -280,7 +280,19 @@ function handleApiError(error, context) {
 async function validateApiAuth() {
     console.log('Validating API authentication...');
     try {
-        const response = await client.request.invoke('validateAuth', {});
+        const { iparams } = await client.data.get('iparams');
+        if (!iparams.freshservice_domain || !iparams.api_key) {
+            throw new Error('Missing API configuration');
+        }
+
+        // Test authentication by making a simple API call
+        const response = await client.request.get(`https://${iparams.freshservice_domain}/api/v2/tickets`, {
+            headers: {
+                ...commonHeaders,
+                'Authorization': `Basic ${btoa(iparams.api_key + ':X')}`
+            }
+        });
+
         if (!response || response.status !== 200) {
             throw new Error('Authentication validation failed');
         }
@@ -329,12 +341,22 @@ async function handleAuthError(error) {
 // Enhanced fetch and cache with auth check
 async function fetchAndCacheData(type, fetchFn) {
     try {
-        // Validate authentication before making request
-        if (!await validateApiAuth()) {
-            throw new Error('Authentication check failed');
+        // Get API configuration
+        const { iparams } = await client.data.get('iparams');
+        if (!iparams.freshservice_domain || !iparams.api_key) {
+            throw new Error('Missing API configuration');
         }
 
-        const response = await makeRequestWithTimeout(fetchFn);
+        // Add authentication headers to the request
+        const headers = {
+            ...commonHeaders,
+            'Authorization': `Basic ${btoa(iparams.api_key + ':X')}`
+        };
+
+        const response = await makeRequestWithTimeout(async () => {
+            return await fetchFn(headers);
+        });
+
         if (response && response.data) {
             window.cacheService.setCachedData(`${type}_all`, response.data);
             console.log(`Cached ${response.data.length} ${type}`);
@@ -374,9 +396,10 @@ function fetchSingleType(type) {
     const config = DATA_TYPES[type];
     if (!config) return null;
 
-    return fetchAndCacheData(type, async () => {
+    return fetchAndCacheData(type, async (headers) => {
         return await client.request.invoke(config.method, {
-            query: { query: '', page: 1, per_page: 100 }
+            query: { query: '', page: 1, per_page: 100 },
+            headers: headers
         });
     });
 }
@@ -802,9 +825,25 @@ async function handleFormSubmission(formData, calculateRiskAndImpact) {
     }
 
     try {
-        const response = await client.request.invokeTemplate('createChange', {
-            body: JSON.stringify(changePayload)
-        });
+        // Get API configuration
+        const { iparams } = await client.data.get('iparams');
+        if (!iparams.freshservice_domain || !iparams.api_key) {
+            throw new Error('Missing API configuration');
+        }
+
+        // Add authentication headers
+        const headers = {
+            ...commonHeaders,
+            'Authorization': `Basic ${btoa(iparams.api_key + ':X')}`
+        };
+
+        const response = await client.request.post(
+            `https://${iparams.freshservice_domain}/api/v2/changes`,
+            {
+                headers,
+                body: JSON.stringify(changePayload)
+            }
+        );
 
         if (response.status === 201) {
             return { changeRequest, changePayload, response: response.data };
@@ -848,8 +887,20 @@ async function validateConfiguration() {
     try {
         const { iparams } = await client.data.get('iparams');
         
-        // Validate domain
-        if (!await validateDomain(iparams.freshservice_domain)) {
+        // Validate domain and API key
+        if (!iparams.freshservice_domain) {
+            await client.interface.trigger('showNotify', {
+                type: 'error',
+                message: 'Freshservice domain is required'
+            });
+            return false;
+        }
+
+        if (!iparams.api_key) {
+            await client.interface.trigger('showNotify', {
+                type: 'error',
+                message: 'API key is required'
+            });
             return false;
         }
 
