@@ -617,33 +617,41 @@ async function validateConfiguration() {
     }
 }
 
-// Split initializeApp into smaller functions
+// Setup form elements with validation
 function setupFormElements() {
-    const form = document.getElementById('changeRequestForm');
-    const riskSelect = document.getElementById('risk');
-    const questionnaireInputs = document.querySelectorAll('.questionnaire input[type="radio"]');
-    const requesterSearch = document.getElementById('requesterSearch');
-    const requesterInput = document.getElementById('requester');
-    const requesterResults = document.getElementById('requesterResults');
-    const departmentSearch = document.getElementById('departmentSearch');
-    const departmentInput = document.getElementById('department');
-    const departmentResults = document.getElementById('departmentResults');
-    const serviceSearch = document.getElementById('serviceSearch');
-    const serviceResults = document.getElementById('serviceResults');
-    
-    return {
-        form,
-        riskSelect,
-        questionnaireInputs,
-        requesterSearch,
-        requesterInput,
-        requesterResults,
-        departmentSearch,
-        departmentInput,
-        departmentResults,
-        serviceSearch,
-        serviceResults
+    console.log('Setting up form elements...');
+    const elements = {
+        form: document.getElementById('changeRequestForm'),
+        riskSelect: document.getElementById('risk'),
+        questionnaireInputs: document.querySelectorAll('.questionnaire input[type="radio"]'),
+        requesterSearch: document.getElementById('requesterSearch'),
+        requesterInput: document.getElementById('requester'),
+        requesterResults: document.getElementById('requesterResults'),
+        departmentSearch: document.getElementById('departmentSearch'),
+        departmentInput: document.getElementById('department'),
+        departmentResults: document.getElementById('departmentResults'),
+        serviceSearch: document.getElementById('serviceSearch'),
+        serviceResults: document.getElementById('serviceResults')
     };
+
+    // Log missing elements
+    Object.entries(elements).forEach(([key, element]) => {
+        if (!element) {
+            console.warn(`Warning: Element '${key}' not found in DOM`);
+        }
+    });
+
+    // Validate critical elements
+    const criticalElements = ['form', 'requesterInput', 'departmentInput'];
+    const missingCriticalElements = criticalElements.filter(key => !elements[key]);
+    
+    if (missingCriticalElements.length > 0) {
+        console.error('Critical elements missing:', missingCriticalElements);
+        throw new Error(`Critical elements missing: ${missingCriticalElements.join(', ')}`);
+    }
+
+    console.log('Form elements setup complete');
+    return elements;
 }
 
 function setupWorkspaceField() {
@@ -701,125 +709,199 @@ async function handleSearchInput(e, searchInput, resultsContainer, valueInput, s
     }
 }
 
+// Setup individual search event listener with validation
+function setupSearchEventListener(searchInput, resultsContainer, valueInput, searchFn, type, selectedList = null) {
+    if (!searchInput || !resultsContainer) {
+        console.warn(`Warning: Missing elements for ${type} search setup`);
+        return;
+    }
+    
+    try {
+        searchInput.addEventListener('input', async function(e) {
+            try {
+                await handleSearchInput(e, searchInput, resultsContainer, valueInput, searchFn, type, selectedList);
+            } catch (error) {
+                console.error(`Error in ${type} search handler:`, error);
+                await client.interface.trigger('showNotify', {
+                    type: 'error',
+                    message: `Error performing ${type} search`
+                });
+            }
+        });
+        console.log(`${type} search event listener setup complete`);
+    } catch (error) {
+        console.error(`Error setting up ${type} search event listener:`, error);
+    }
+}
+
+// Setup requester search
+function setupRequesterSearch(elements) {
+    if (!elements.requesterSearch || !elements.requesterResults || !elements.requesterInput) {
+        console.warn('Warning: Missing elements for requester search');
+        return;
+    }
+    
+    setupSearchEventListener(
+        elements.requesterSearch,
+        elements.requesterResults,
+        elements.requesterInput,
+        searchUsers,
+        'user'
+    );
+}
+
+// Setup department search
+function setupDepartmentSearch(elements) {
+    if (!elements.departmentSearch || !elements.departmentResults || !elements.departmentInput) {
+        console.warn('Warning: Missing elements for department search');
+        return;
+    }
+    
+    setupSearchEventListener(
+        elements.departmentSearch,
+        elements.departmentResults,
+        elements.departmentInput,
+        searchDepartments,
+        'department'
+    );
+}
+
+// Setup service search
+function setupServiceSearch(elements, selectedServicesList) {
+    if (!elements.serviceSearch || !elements.serviceResults) {
+        console.warn('Warning: Missing elements for service search');
+        return;
+    }
+    
+    setupSearchEventListener(
+        elements.serviceSearch,
+        elements.serviceResults,
+        null,
+        searchItems,
+        'service',
+        selectedServicesList
+    );
+}
+
+// Setup search event listeners
+function setupSearchEventListeners(elements, selectedServicesList) {
+    console.log('Setting up search event listeners...');
+    
+    try {
+        setupRequesterSearch(elements);
+        setupDepartmentSearch(elements);
+        setupServiceSearch(elements, selectedServicesList);
+    } catch (error) {
+        console.error('Error in setupSearchEventListeners:', error);
+        throw error;
+    }
+}
+
+// Setup click outside handlers
+function setupClickOutsideHandlers(elements) {
+    document.addEventListener('click', function(e) {
+        if (elements.requesterResults && !e.target.closest('.user-lookup')) {
+            elements.requesterResults.classList.remove('active');
+        }
+        if (elements.departmentResults && !e.target.closest('.department-lookup')) {
+            elements.departmentResults.classList.remove('active');
+        }
+        if (elements.serviceResults && !e.target.closest('.service-lookup')) {
+            elements.serviceResults.classList.remove('active');
+        }
+    });
+}
+
+// Setup form submission handler
+function setupFormSubmissionHandler(elements, selectedServicesList) {
+    if (!elements.form) return;
+
+    elements.form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        if (!elements.requesterInput.value) {
+            await client.interface.trigger('showNotify', {
+                type: 'error',
+                message: 'Please select a requester'
+            });
+            return;
+        }
+        if (!elements.departmentInput.value) {
+            await client.interface.trigger('showNotify', {
+                type: 'error',
+                message: 'Please select a department'
+            });
+            return;
+        }
+        try {
+            const formData = new FormData(elements.form);
+            const { changeRequest, changePayload } = await handleFormSubmission(formData, calculateRiskAndImpact);
+            const result = await showChangeConfirmation(changeRequest);
+            if (result === "Save") {
+                const response = await makeRequestWithTimeout(async () => {
+                    return await client.request.invoke('createChange', {
+                        body: JSON.stringify(changePayload)
+                    });
+                });
+                
+                if (response.status === 201) {
+                    const changeData = response.data;
+                    await client.interface.trigger('showNotify', {
+                        type: 'success',
+                        message: `Change request created successfully with ID: ${changeData.id}`
+                    });
+                    elements.form.reset();
+                    selectedServicesList.clear();
+                    updateSelectedServices(selectedServicesList);
+                }
+            }
+        } catch (error) {
+            await handleErr(error);
+        }
+    });
+}
+
+// Setup questionnaire listeners
+function setupQuestionnaireListeners(elements) {
+    if (elements.questionnaireInputs && elements.riskSelect) {
+        elements.questionnaireInputs.forEach(input => {
+            input.addEventListener('change', () => {
+                console.log('Questionnaire input changed, updating risk and impact...');
+                updateRiskAndImpact(elements.questionnaireInputs, elements.riskSelect);
+            });
+        });
+    }
+}
+
 function initializeApp() {
     console.log('Starting app initialization...');
     try {
-        // Setup form elements
+        // Setup form elements with validation
         const elements = setupFormElements();
-        console.log('Form elements setup complete');
-
+        
         // Setup workspace field
         setupWorkspaceField();
         console.log('Workspace field setup complete');
 
-        // Setup search handlers
-        const timeoutManager = {
-            clear() {
-                if (this.timeout) {
-                    clearTimeout(this.timeout);
-                    this.timeout = null;
-                }
-            },
-            set(callback, delay) {
-                this.clear();
-                this.timeout = setTimeout(callback, delay);
-            }
-        };
-
+        // Initialize selected services list
         const selectedServicesList = new Set();
 
-        // Setup search handlers for each search element
-        if (elements.requesterSearch && elements.requesterResults && elements.requesterInput) {
-            elements.requesterSearch.addEventListener('input', async function(e) {
-                await handleSearchInput(e, elements.requesterSearch, elements.requesterResults, elements.requesterInput, searchUsers, 'user');
-            });
+        // Setup all event listeners with error handling
+        try {
+            setupSearchEventListeners(elements, selectedServicesList);
+            console.log('Search handlers setup complete');
+
+            setupClickOutsideHandlers(elements);
+            console.log('Click outside handlers setup complete');
+
+            setupFormSubmissionHandler(elements, selectedServicesList);
+            console.log('Form submission handler setup complete');
+
+            setupQuestionnaireListeners(elements);
+            console.log('Questionnaire listeners setup complete');
+        } catch (error) {
+            console.error('Error setting up event listeners:', error);
+            throw error;
         }
-
-        if (elements.departmentSearch && elements.departmentResults && elements.departmentInput) {
-            elements.departmentSearch.addEventListener('input', async function(e) {
-                await handleSearchInput(e, elements.departmentSearch, elements.departmentResults, elements.departmentInput, searchDepartments, 'department');
-            });
-        }
-
-        if (elements.serviceSearch && elements.serviceResults) {
-            elements.serviceSearch.addEventListener('input', async function(e) {
-                await handleSearchInput(e, elements.serviceSearch, elements.serviceResults, null, searchItems, 'service', selectedServicesList);
-            });
-        }
-
-        console.log('Search handlers setup complete');
-
-        // Setup click outside handlers
-        document.addEventListener('click', function(e) {
-            if (elements.requesterResults && !e.target.closest('.user-lookup')) {
-                elements.requesterResults.classList.remove('active');
-            }
-            if (elements.departmentResults && !e.target.closest('.department-lookup')) {
-                elements.departmentResults.classList.remove('active');
-            }
-            if (elements.serviceResults && !e.target.closest('.service-lookup')) {
-                elements.serviceResults.classList.remove('active');
-            }
-        });
-        console.log('Click outside handlers setup complete');
-
-        // Setup form submission
-        if (elements.form) {
-            elements.form.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                if (!elements.requesterInput.value) {
-                    await client.interface.trigger('showNotify', {
-                        type: 'error',
-                        message: 'Please select a requester'
-                    });
-                    return;
-                }
-                if (!elements.departmentInput.value) {
-                    await client.interface.trigger('showNotify', {
-                        type: 'error',
-                        message: 'Please select a department'
-                    });
-                    return;
-                }
-                try {
-                    const formData = new FormData(elements.form);
-                    const { changeRequest, changePayload } = await handleFormSubmission(formData, calculateRiskAndImpact);
-                    const result = await showChangeConfirmation(changeRequest);
-                    if (result === "Save") {
-                        const response = await makeRequestWithTimeout(async () => {
-                            return await client.request.invoke('createChange', {
-                                body: JSON.stringify(changePayload)
-                            });
-                        });
-                        
-                        if (response.status === 201) {
-                            const changeData = response.data;
-                            await client.interface.trigger('showNotify', {
-                                type: 'success',
-                                message: `Change request created successfully with ID: ${changeData.id}`
-                            });
-                            elements.form.reset();
-                            selectedServicesList.clear();
-                            updateSelectedServices(selectedServicesList);
-                        }
-                    }
-                } catch (error) {
-                    await handleErr(error);
-                }
-            });
-        }
-        console.log('Form submission handler setup complete');
-
-        // Setup questionnaire listeners
-        if (elements.questionnaireInputs && elements.riskSelect) {
-            elements.questionnaireInputs.forEach(input => {
-                input.addEventListener('change', () => {
-                    console.log('Questionnaire input changed, updating risk and impact...');
-                    updateRiskAndImpact(elements.questionnaireInputs, elements.riskSelect);
-                });
-            });
-        }
-        console.log('Questionnaire listeners setup complete');
 
     } catch (error) {
         console.error('Error in initializeApp:', error);
