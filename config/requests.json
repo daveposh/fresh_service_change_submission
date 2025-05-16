@@ -6,7 +6,7 @@
       "host": "<%= iparam.freshservice_domain %>.freshservice.com",
       "path": "/api/v2/tickets",
       "headers": {
-        "Authorization": "<%= iparam.api_key %>:x",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':x') %>",
         "Content-Type": "application/json"
       }
     }
@@ -18,7 +18,7 @@
       "host": "<%= iparam.freshservice_domain %>.freshservice.com",
       "path": "/api/v2/agents",
       "headers": {
-        "Authorization": "<%= iparam.api_key %>:x",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':x') %>",
         "Content-Type": "application/json"
       },
       "query": {
@@ -35,7 +35,7 @@
       "host": "<%= iparam.freshservice_domain %>.freshservice.com",
       "path": "/api/v2/groups",
       "headers": {
-        "Authorization": "<%= iparam.api_key %>:x",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':x') %>",
         "Content-Type": "application/json"
       },
       "query": {
@@ -52,7 +52,7 @@
       "host": "<%= iparam.freshservice_domain %>.freshservice.com",
       "path": "/api/v2/services",
       "headers": {
-        "Authorization": "<%= iparam.api_key %>:x",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':x') %>",
         "Content-Type": "application/json"
       },
       "query": {
@@ -69,7 +69,7 @@
       "host": "<%= iparam.freshservice_domain %>.freshservice.com",
       "path": "/api/v2/assets",
       "headers": {
-        "Authorization": "<%= iparam.api_key %>:x",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':x') %>",
         "Content-Type": "application/json"
       },
       "query": {
@@ -86,7 +86,7 @@
       "host": "<%= iparam.freshservice_domain %>.freshservice.com",
       "path": "/api/v2/changes",
       "headers": {
-        "Authorization": "<%= iparam.api_key %>:x",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':x') %>",
         "Content-Type": "application/json"
       }
     }
