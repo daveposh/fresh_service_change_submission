@@ -822,7 +822,7 @@ function setupFormSubmissionHandler(form, selectedServicesList) {
     });
 }
 
-async function initializeApp() {
+function initializeApp() {
     console.log('Starting app initialization...');
     try {
         // Setup form elements

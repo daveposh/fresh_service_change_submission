@@ -1,11 +1,5 @@
 {
-  "lints": [
-    {
-      "severity": 2,
-      "value": "app\\scripts\\app.js::825: Async function 'initializeApp' has no 'await' expression.",
-      "type": "lint"
-    }
-  ],
+  "lints": [],
   "coverageSummary": {
     "lines": {
       "total": 381,
