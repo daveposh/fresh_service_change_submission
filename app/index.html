@@ -228,6 +228,10 @@
         </div>
       </form>
     </div>
+    <!-- Load services first -->
+    <script src="scripts/services/cacheService.js"></script>
+    <script src="scripts/services/searchService.js"></script>
+    <!-- Load main app last -->
     <script src="scripts/app.js"></script>
     <script>
     function setupKeyboardNavigation(resultsContainer, items) {

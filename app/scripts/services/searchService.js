@@ -3,7 +3,7 @@
  * Handles all search-related functionality with caching
  */
 
-const { getCachedData, setCachedData, invalidateCache } = app.modules.services.cache;
+const { getCachedData, setCachedData, invalidateCache } = window.cacheService;
 
 /**
  * Search users in Freshservice
@@ -158,7 +158,8 @@ function clearSearchCache() {
     invalidateCache('items');
 }
 
-app.modules.services.search = {
+// Export the search service functions
+window.searchService = {
     searchUsers,
     searchDepartments,
     searchItems,
