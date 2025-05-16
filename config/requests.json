@@ -6,13 +6,10 @@
       "host": "<%= iparam.freshservice_domain %>.freshservice.com",
       "path": "/api/v2/tickets",
       "headers": {
-        "Authorization": "Bearer <%= access_token %>",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>",
         "Content-Type": "application/json",
         "X-Freshservice-API-Version": "2.0"
       }
-    },
-    "options": {
-      "isOAuth": true
     }
   },
   "searchUsers": {
@@ -22,7 +19,7 @@
       "host": "<%= iparam.freshservice_domain %>.freshservice.com",
       "path": "/api/v2/agents",
       "headers": {
-        "Authorization": "Bearer <%= access_token %>",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>",
         "Content-Type": "application/json",
         "X-Freshservice-API-Version": "2.0"
       },
@@ -31,9 +28,6 @@
         "page": "<%= context.page %>",
         "per_page": "<%= context.per_page %>"
       }
-    },
-    "options": {
-      "isOAuth": true
     }
   },
   "searchGroups": {
@@ -43,7 +37,7 @@
       "host": "<%= iparam.freshservice_domain %>.freshservice.com",
       "path": "/api/v2/groups",
       "headers": {
-        "Authorization": "Bearer <%= access_token %>",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>",
         "Content-Type": "application/json",
         "X-Freshservice-API-Version": "2.0"
       },
@@ -52,9 +46,6 @@
         "page": "<%= context.page %>",
         "per_page": "<%= context.per_page %>"
       }
-    },
-    "options": {
-      "isOAuth": true
     }
   },
   "searchServices": {
@@ -64,7 +55,7 @@
       "host": "<%= iparam.freshservice_domain %>.freshservice.com",
       "path": "/api/v2/services",
       "headers": {
-        "Authorization": "Bearer <%= access_token %>",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>",
         "Content-Type": "application/json",
         "X-Freshservice-API-Version": "2.0"
       },
@@ -73,9 +64,6 @@
         "page": "<%= context.page %>",
         "per_page": "<%= context.per_page %>"
       }
-    },
-    "options": {
-      "isOAuth": true
     }
   },
   "searchAssets": {
@@ -85,7 +73,7 @@
       "host": "<%= iparam.freshservice_domain %>.freshservice.com",
       "path": "/api/v2/assets",
       "headers": {
-        "Authorization": "Bearer <%= access_token %>",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>",
         "Content-Type": "application/json",
         "X-Freshservice-API-Version": "2.0"
       },
@@ -94,9 +82,6 @@
         "page": "<%= context.page %>",
         "per_page": "<%= context.per_page %>"
       }
-    },
-    "options": {
-      "isOAuth": true
     }
   },
   "createChange": {
@@ -106,13 +91,10 @@
       "host": "<%= iparam.freshservice_domain %>.freshservice.com",
       "path": "/api/v2/changes",
       "headers": {
-        "Authorization": "Bearer <%= access_token %>",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>",
         "Content-Type": "application/json",
         "X-Freshservice-API-Version": "2.0"
       }
-    },
-    "options": {
-      "isOAuth": true
     }
   }
 } 

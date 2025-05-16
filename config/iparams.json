@@ -1,14 +1,14 @@
 {
   "freshservice_domain": {
     "display_name": "Freshservice Domain",
-    "description": "Your Freshservice domain (e.g., yourdomain.freshservice.com)",
+    "description": "Please enter your Freshservice domain (e.g., company)",
     "type": "text",
     "required": true,
     "secure": false
   },
   "api_key": {
     "display_name": "API Key",
-    "description": "Your Freshservice API key",
+    "description": "Please enter your Freshservice API key",
     "type": "text",
     "required": true,
     "secure": true
