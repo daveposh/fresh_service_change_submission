@@ -558,3 +558,22 @@ input[readonly] {
 .btn-primary:hover {
     background-color: #3182ce;
 }
+
+.search-status {
+    margin-top: 5px;
+    font-size: 0.9em;
+    color: #666;
+    min-height: 20px;
+}
+
+.search-status.loading {
+    color: #2196F3;
+}
+
+.search-status.error {
+    color: #f44336;
+}
+
+.search-status.success {
+    color: #4CAF50;
+}

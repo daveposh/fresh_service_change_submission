@@ -24,6 +24,7 @@
             <input type="text" id="requesterSearch" placeholder="Search users...">
             <input type="hidden" id="requester" name="requester">
             <div id="requesterResults" class="lookup-results"></div>
+            <div id="requesterStatus" class="search-status"></div>
           </div>
 
           <div class="form-group department-lookup">
@@ -31,6 +32,7 @@
             <input type="text" id="departmentSearch" placeholder="Search departments...">
             <input type="hidden" id="department" name="department">
             <div id="departmentResults" class="lookup-results"></div>
+            <div id="departmentStatus" class="search-status"></div>
           </div>
 
           <div class="form-group">
@@ -196,6 +198,7 @@
             <input type="text" id="serviceSearch" placeholder="Search services or assets...">
             <input type="hidden" id="associatedAssets" name="associatedAssets">
             <div id="serviceResults" class="lookup-results"></div>
+            <div id="serviceStatus" class="search-status"></div>
             <div id="selectedServices" class="selected-items"></div>
           </div>
 
@@ -226,5 +229,34 @@
       </form>
     </div>
     <script src="scripts/app.js"></script>
+    <script>
+    function setupKeyboardNavigation(resultsContainer, items) {
+        resultsContainer.addEventListener('keydown', (e) => {
+            const items = resultsContainer.querySelectorAll('.result-item');
+            const currentIndex = Array.from(items).findIndex(item => item === document.activeElement);
+            
+            switch(e.key) {
+                case 'ArrowDown':
+                    e.preventDefault();
+                    if (currentIndex < items.length - 1) {
+                        items[currentIndex + 1].focus();
+                    }
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    if (currentIndex > 0) {
+                        items[currentIndex - 1].focus();
+                    }
+                    break;
+                case 'Enter':
+                    e.preventDefault();
+                    if (currentIndex >= 0) {
+                        items[currentIndex].click();
+                    }
+                    break;
+            }
+        });
+    }
+    </script>
   </body>
 </html>

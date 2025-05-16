@@ -1,3 +1,7 @@
+// Import services
+const { clearSearchCache } = require('./services/searchService');
+const { getCacheStats } = require('./services/cacheService');
+
 // Initialize the app
 document.onreadystatechange = function() {
     if (document.readyState === 'interactive') {
@@ -734,30 +738,46 @@ function setupSearchHandlers(elements, timeoutManager, selectedServicesList) {
 
 // Handle search input
 async function handleSearchInput(e, searchInput, resultsContainer, valueInput, searchFn, type, selectedList = null) {
-    console.log(`Handling search input for ${type}...`);
+    console.log(`Starting search for ${type}...`);
     const query = e.target.value.trim();
+    const statusElement = document.getElementById(`${type}Status`);
     
     if (query.length < 2) {
         console.log('Query too short, clearing results');
         resultsContainer.innerHTML = '';
+        statusElement.innerHTML = '';
+        statusElement.className = 'search-status';
         return;
     }
 
     try {
+        // Update status to loading
+        statusElement.innerHTML = 'Searching...';
+        statusElement.className = 'search-status loading';
         console.log(`Making API request for ${type} search...`);
-        const results = await searchFn(query);
+        
+        const results = await searchFn(query, client);
         console.log(`Received ${results.length} results for ${type}`);
         
         if (results.length === 0) {
             resultsContainer.innerHTML = '<div class="no-results">No results found</div>';
-            return;
+            statusElement.innerHTML = 'No results found';
+            statusElement.className = 'search-status';
+        } else {
+            await displayItemResults(results, resultsContainer, selectedList);
+            statusElement.innerHTML = `Found ${results.length} results`;
+            statusElement.className = 'search-status success';
+            console.log('Results displayed successfully');
         }
 
-        await displayItemResults(results, resultsContainer, selectedList);
-        console.log('Results displayed successfully');
+        // Log cache statistics
+        const cacheStats = getCacheStats();
+        console.log('Cache statistics:', cacheStats);
     } catch (error) {
         console.error(`Error in ${type} search:`, error);
         resultsContainer.innerHTML = '<div class="error">Error performing search</div>';
+        statusElement.innerHTML = 'Error performing search';
+        statusElement.className = 'search-status error';
     }
 }
 
