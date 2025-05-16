@@ -218,8 +218,9 @@ Overall Impact: ${impactMessages[impact]}`;
 
 // Cache configuration
 const cacheConfig = {
-    maxAge: 5 * 60 * 1000, // 5 minutes in milliseconds
-    cache: new Map()
+    maxAge: 15 * 60 * 1000, // 15 minutes in milliseconds
+    cache: new Map(),
+    lastRefresh: null
 };
 
 // Retry configuration
@@ -275,45 +276,331 @@ function handleApiError(error, context) {
         : 'An unexpected error occurred. Please try again.';
 }
 
-// User lookup functionality
+// Validate API authentication
+async function validateApiAuth() {
+    console.log('Validating API authentication...');
+    try {
+        const response = await client.request.invoke('validateAuth', {});
+        if (!response || response.status !== 200) {
+            throw new Error('Authentication validation failed');
+        }
+        return true;
+    } catch (error) {
+        console.error('Authentication error:', error);
+        await handleAuthError(error);
+        return false;
+    }
+}
+
+// Handle authentication errors
+async function handleAuthError(error) {
+    const errorMessage = 'Authentication failed: ' + (error.message || 'Unknown error');
+    console.error(errorMessage);
+
+    // Show error to user
+    await client.interface.trigger('showNotify', {
+        type: 'error',
+        message: 'Authentication error. Please refresh the page or contact support.'
+    });
+
+    // Track authentication failure
+    if (window.errorTracker) {
+        window.errorTracker.trackError('Authentication', error);
+    }
+
+    // Notify admins of authentication issues
+    try {
+        await client.request.invoke('notifyAdmins', {
+            subject: 'Authentication Error',
+            message: JSON.stringify({
+                error: errorMessage,
+                timestamp: new Date().toISOString(),
+                stack: error.stack
+            }, null, 2)
+        });
+    } catch (notifyError) {
+        console.error('Failed to notify admins of auth error:', notifyError);
+    }
+
+    // Clear any existing cache as it might be stale
+    window.cacheService.clearCache();
+}
+
+// Enhanced fetch and cache with auth check
+async function fetchAndCacheData(type, fetchFn) {
+    try {
+        // Validate authentication before making request
+        if (!await validateApiAuth()) {
+            throw new Error('Authentication check failed');
+        }
+
+        const response = await makeRequestWithTimeout(fetchFn);
+        if (response && response.data) {
+            window.cacheService.setCachedData(`${type}_all`, response.data);
+            console.log(`Cached ${response.data.length} ${type}`);
+            return response.data;
+        }
+        throw new Error(`Invalid response format for ${type}`);
+    } catch (error) {
+        if (error.status === 401 || error.status === 403) {
+            await handleAuthError(error);
+        }
+        throw new Error(`Failed to fetch ${type}: ${error.message}`);
+    }
+}
+
+// Configuration for data types
+const DATA_TYPES = {
+    users: {
+        method: 'searchUsers',
+        errorMessage: 'Failed to load users'
+    },
+    departments: {
+        method: 'searchGroups',
+        errorMessage: 'Failed to load departments'
+    },
+    services: {
+        method: 'searchServices',
+        errorMessage: 'Failed to load services'
+    },
+    assets: {
+        method: 'searchAssets',
+        errorMessage: 'Failed to load assets'
+    }
+};
+
+// Fetch single data type
+function fetchSingleType(type) {
+    const config = DATA_TYPES[type];
+    if (!config) return null;
+
+    return fetchAndCacheData(type, async () => {
+        return await client.request.invoke(config.method, {
+            query: { query: '', page: 1, per_page: 100 }
+        });
+    });
+}
+
+// Validate and prepare cache
+async function validateAndPrepare() {
+    if (!await validateApiAuth()) {
+        throw { type: 'AUTH_ERROR', message: 'Authentication failed' };
+    }
+    return Object.keys(DATA_TYPES);
+}
+
+// Process single data type
+async function processSingleType(type) {
+    try {
+        await fetchSingleType(type);
+        return { type, success: true };
+    } catch (error) {
+        return { type, success: false, error };
+    }
+}
+
+// Initialize cache
+async function initializeCache() {
+    try {
+        const types = await validateAndPrepare();
+        const results = await Promise.all(types.map(processSingleType));
+        
+        const failures = results.filter(r => !r.success);
+        if (failures.length > 0) {
+            throw { type: 'CACHE_ERROR', failures };
+        }
+
+        cacheConfig.lastRefresh = Date.now();
+        await notifySuccess('Search data loaded successfully');
+    } catch (error) {
+        await handleError(error);
+    }
+}
+
+// Error reporting service
+const ErrorReporter = {
+    captureError(error, context = {}) {
+        const errorReport = {
+            timestamp: new Date().toISOString(),
+            error: {
+                type: error.type || 'UNKNOWN',
+                message: error.message,
+                stack: error.stack
+            },
+            context: {
+                component: 'CacheSystem',
+                environment: window.APP_ENV || 'production',
+                ...context
+            }
+        };
+
+        // Send to error tracking service if available
+        if (window.errorTracker) {
+            window.errorTracker.trackError(errorReport);
+        }
+
+        // Log structured error data
+        this.logError(errorReport);
+    },
+
+    logError(errorReport) {
+        const structuredLog = JSON.stringify(errorReport, null, 2);
+        
+        // Send to logging service or fallback to console
+        if (window.loggingService) {
+            window.loggingService.error(structuredLog);
+        } else {
+            // Format console output for better readability
+            const formattedError = [
+                '=== Error Report ===',
+                `Time: ${errorReport.timestamp}`,
+                `Type: ${errorReport.error.type}`,
+                `Message: ${errorReport.error.message}`,
+                `Component: ${errorReport.context.component}`,
+                `Environment: ${errorReport.context.environment}`,
+                '==================='
+            ].join('\n');
+            
+            // Use console.info for structured logging
+            console.info(formattedError);
+        }
+    }
+};
+
+// Handle errors
+async function handleError(error) {
+    // Capture and report error
+    ErrorReporter.captureError(error, {
+        cacheState: {
+            lastRefresh: cacheConfig.lastRefresh,
+            hasData: cacheConfig.cache.size > 0
+        }
+    });
+
+    // Notify user
+    await notifyError(getUserFriendlyError(error));
+
+    // Notify admins for critical errors
+    if (error.type === 'AUTH_ERROR' || error.type === 'CACHE_ERROR') {
+        await notifyAdmins('Cache System Error', {
+            error,
+            timestamp: new Date().toISOString(),
+            cacheState: cacheConfig
+        });
+    }
+
+    // Clear cache if needed
+    if (error.type === 'AUTH_ERROR') {
+        window.cacheService.clearCache();
+    }
+}
+
+// Get user-friendly error message
+function getUserFriendlyError(error) {
+    const messages = {
+        AUTH_ERROR: 'Please refresh the page and try again',
+        CACHE_ERROR: 'Unable to load search data. Please try again later',
+        default: 'An unexpected error occurred'
+    };
+    return messages[error.type] || messages.default;
+}
+
+// Notify success
+async function notifySuccess(message) {
+    await client.interface.trigger('showNotify', {
+        type: 'success',
+        message
+    });
+}
+
+// Notify error
+async function notifyError(message) {
+    await client.interface.trigger('showNotify', {
+        type: 'error',
+        message
+    });
+}
+
+// Notify admins
+async function notifyAdmins(subject, details) {
+    try {
+        await client.request.invoke('notifyAdmins', {
+            subject,
+            message: JSON.stringify(details, null, 2)
+        });
+    } catch (error) {
+        ErrorReporter.captureError({
+            type: 'ADMIN_NOTIFY_ERROR',
+            message: 'Failed to notify administrators',
+            originalError: error
+        });
+    }
+}
+
+// Handle cache errors with recovery attempts
+async function handleCacheError(error) {
+    try {
+        // Clear existing cache
+        window.cacheService.clearCache();
+        
+        // Log detailed error information for debugging
+        const errorDetails = {
+            message: error.message,
+            stack: error.stack,
+            timestamp: new Date().toISOString(),
+            cacheState: cacheConfig
+        };
+        
+        console.error('Cache error details:', errorDetails);
+
+        // Notify admins if critical
+        if (error.message.includes('API') || error.message.includes('Authentication')) {
+            await client.request.invoke('notifyAdmins', {
+                subject: 'Cache Initialization Error',
+                message: JSON.stringify(errorDetails, null, 2)
+            }).catch(e => console.error('Failed to notify admins:', e));
+        }
+
+        // Set a flag to retry initialization later
+        cacheConfig.needsRetry = true;
+        cacheConfig.lastError = errorDetails;
+        
+    } catch (recoveryError) {
+        console.error('Error recovery failed:', recoveryError);
+        // Ensure the user is informed of the issue
+        await client.interface.trigger('showNotify', {
+            type: 'error',
+            message: 'Search functionality may be limited. Please refresh the page.'
+        });
+    }
+}
+
+// Check if cache needs refresh
+function shouldRefreshCache() {
+    if (!cacheConfig.lastRefresh) return true;
+    return Date.now() - cacheConfig.lastRefresh > cacheConfig.maxAge;
+}
+
+// Enhanced search functions that use cache
 async function searchUsers(query) {
     console.log('Starting user search with query:', query);
     try {
-        const cacheKey = `users_${query}`;
-        const cachedData = window.cacheService.getCachedData(cacheKey);
-        
-        if (cachedData) {
-            console.log('Returning cached user data:', cachedData);
-            return cachedData;
+        // Check if we need to refresh the cache
+        if (shouldRefreshCache()) {
+            await initializeCache();
         }
 
-        console.log('Making API request for users...');
-        await client.interface.trigger('showNotify', {
-            type: 'info',
-            message: 'Searching users...'
-        });
-
-        const response = await makeRequestWithTimeout(async () => {
-            console.log('Initiating user search API call...');
-            return await client.request.invoke('searchUsers', {
-                query: {
-                    query: query,
-                    page: 1,
-                    per_page: 10
-                }
-            });
-        });
-
-        if (!response || !response.data) {
-            console.error('Invalid response format:', response);
-            throw new Error('Invalid response format from users API');
-        }
-
-        const users = Array.isArray(response.data) ? response.data : [];
-        console.log('Processed user search results:', users);
+        // Get all users from cache
+        const allUsers = window.cacheService.getCachedData('users_all') || [];
         
-        window.cacheService.setCachedData(cacheKey, users);
-        return users;
+        // Filter users based on query
+        const filteredUsers = allUsers.filter(user => 
+            user.name.toLowerCase().includes(query.toLowerCase()) ||
+            (user.email && user.email.toLowerCase().includes(query.toLowerCase()))
+        );
+
+        console.log(`Found ${filteredUsers.length} matching users`);
+        return filteredUsers.slice(0, 10); // Return top 10 matches
     } catch (error) {
         console.error('Error in searchUsers:', error);
         const userMessage = handleApiError(error, 'user search');
@@ -325,45 +612,25 @@ async function searchUsers(query) {
     }
 }
 
-// Department lookup functionality
 async function searchDepartments(query) {
     console.log('Starting department search with query:', query);
     try {
-        const cacheKey = `departments_${query}`;
-        const cachedData = window.cacheService.getCachedData(cacheKey);
-        
-        if (cachedData) {
-            console.log('Returning cached department data:', cachedData);
-            return cachedData;
+        // Check if we need to refresh the cache
+        if (shouldRefreshCache()) {
+            await initializeCache();
         }
 
-        console.log('Making API request for departments...');
-        await client.interface.trigger('showNotify', {
-            type: 'info',
-            message: 'Searching departments...'
-        });
-
-        const response = await makeRequestWithTimeout(async () => {
-            console.log('Initiating department search API call...');
-            return await client.request.invoke('searchGroups', {
-                query: {
-                    query: query,
-                    page: 1,
-                    per_page: 10
-                }
-            });
-        });
-
-        if (!response || !response.data) {
-            console.error('Invalid response format:', response);
-            throw new Error('Invalid response format from groups API');
-        }
-
-        const departments = Array.isArray(response.data) ? response.data : [];
-        console.log('Processed department search results:', departments);
+        // Get all departments from cache
+        const allDepartments = window.cacheService.getCachedData('departments_all') || [];
         
-        window.cacheService.setCachedData(cacheKey, departments);
-        return departments;
+        // Filter departments based on query
+        const filteredDepartments = allDepartments.filter(dept => 
+            dept.name.toLowerCase().includes(query.toLowerCase()) ||
+            (dept.description && dept.description.toLowerCase().includes(query.toLowerCase()))
+        );
+
+        console.log(`Found ${filteredDepartments.length} matching departments`);
+        return filteredDepartments.slice(0, 10); // Return top 10 matches
     } catch (error) {
         console.error('Error in searchDepartments:', error);
         const userMessage = handleApiError(error, 'department search');
@@ -375,52 +642,32 @@ async function searchDepartments(query) {
     }
 }
 
-// Service and Asset lookup functionality
 async function searchItems(query) {
     console.log('Starting items search with query:', query);
     try {
-        const cacheKey = `items_${query}`;
-        const cachedData = window.cacheService.getCachedData(cacheKey);
-        
-        if (cachedData) {
-            console.log('Returning cached items data:', cachedData);
-            return cachedData;
+        // Check if we need to refresh the cache
+        if (shouldRefreshCache()) {
+            await initializeCache();
         }
 
-        console.log('Making API requests for services and assets...');
-        await client.interface.trigger('showNotify', {
-            type: 'info',
-            message: 'Searching items...'
-        });
+        // Get all services and assets from cache
+        const allServices = window.cacheService.getCachedData('services_all') || [];
+        const allAssets = window.cacheService.getCachedData('assets_all') || [];
+        
+        // Filter services and assets based on query
+        const filteredServices = allServices.filter(service => 
+            service.name.toLowerCase().includes(query.toLowerCase()) ||
+            (service.description && service.description.toLowerCase().includes(query.toLowerCase()))
+        ).map(service => ({ ...service, type: 'service' }));
 
-        const response = await makeRequestWithTimeout(async () => {
-            console.log('Initiating services and assets API calls...');
-            const [servicesResponse, assetsResponse] = await Promise.all([
-                client.request.invoke('searchServices', {
-                    query: { query, page: 1, per_page: 5 }
-                }),
-                client.request.invoke('searchAssets', {
-                    query: { query, page: 1, per_page: 5 }
-                })
-            ]);
+        const filteredAssets = allAssets.filter(asset => 
+            asset.name.toLowerCase().includes(query.toLowerCase()) ||
+            (asset.description && asset.description.toLowerCase().includes(query.toLowerCase()))
+        ).map(asset => ({ ...asset, type: 'asset' }));
 
-            if (!servicesResponse || !servicesResponse.data || !assetsResponse || !assetsResponse.data) {
-                throw new Error('Invalid response format from services/assets API');
-            }
-
-            const services = Array.isArray(servicesResponse.data) ? servicesResponse.data : [];
-            const assets = Array.isArray(assetsResponse.data) ? assetsResponse.data : [];
-
-            const items = [
-                ...services.map(service => ({ ...service, type: 'service' })),
-                ...assets.map(asset => ({ ...asset, type: 'asset' }))
-            ];
-
-            window.cacheService.setCachedData(cacheKey, items);
-            return items;
-        });
-
-        return response;
+        const items = [...filteredServices, ...filteredAssets];
+        console.log(`Found ${items.length} matching items`);
+        return items.slice(0, 10); // Return top 10 matches
     } catch (error) {
         console.error('Error in searchItems:', error);
         const userMessage = handleApiError(error, 'item search');
@@ -875,33 +1122,51 @@ function setupQuestionnaireListeners(elements) {
 function initializeApp() {
     console.log('Starting app initialization...');
     try {
-        // Setup form elements with validation
-        const elements = setupFormElements();
-        
-        // Setup workspace field
-        setupWorkspaceField();
-        console.log('Workspace field setup complete');
+        // Validate authentication before proceeding
+        validateApiAuth().then(async (isAuthenticated) => {
+            if (!isAuthenticated) {
+                console.error('Authentication validation failed');
+                return;
+            }
 
-        // Initialize selected services list
-        const selectedServicesList = new Set();
+            // Initialize cache
+            await initializeCache().then(() => {
+                console.log('Cache initialized successfully');
+            }).catch(error => {
+                console.error('Error initializing cache:', error);
+            });
 
-        // Setup all event listeners with error handling
-        try {
-            setupSearchEventListeners(elements, selectedServicesList);
-            console.log('Search handlers setup complete');
+            // Setup form elements with validation
+            const elements = setupFormElements();
+            
+            // Setup workspace field
+            setupWorkspaceField();
+            console.log('Workspace field setup complete');
 
-            setupClickOutsideHandlers(elements);
-            console.log('Click outside handlers setup complete');
+            // Initialize selected services list
+            const selectedServicesList = new Set();
 
-            setupFormSubmissionHandler(elements, selectedServicesList);
-            console.log('Form submission handler setup complete');
+            // Setup all event listeners with error handling
+            try {
+                setupSearchEventListeners(elements, selectedServicesList);
+                console.log('Search handlers setup complete');
 
-            setupQuestionnaireListeners(elements);
-            console.log('Questionnaire listeners setup complete');
-        } catch (error) {
-            console.error('Error setting up event listeners:', error);
-            throw error;
-        }
+                setupClickOutsideHandlers(elements);
+                console.log('Click outside handlers setup complete');
+
+                setupFormSubmissionHandler(elements, selectedServicesList);
+                console.log('Form submission handler setup complete');
+
+                setupQuestionnaireListeners(elements);
+                console.log('Questionnaire listeners setup complete');
+            } catch (error) {
+                console.error('Error setting up event listeners:', error);
+                throw error;
+            }
+        }).catch(error => {
+            console.error('Error during app initialization:', error);
+            handleErr(error);
+        });
 
     } catch (error) {
         console.error('Error in initializeApp:', error);
