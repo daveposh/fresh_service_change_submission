@@ -6,9 +6,8 @@
       "host": "<%= iparam.freshservice_domain %>.freshservice.com",
       "path": "/api/v2/tickets",
       "headers": {
-        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>",
-        "Content-Type": "application/json",
-        "X-Freshservice-API-Version": "2.0"
+        "Authorization": "Basic <%= encode(iparam.api_key + ':x') %>",
+        "Content-Type": "application/json"
       }
     }
   },
@@ -19,9 +18,8 @@
       "host": "<%= iparam.freshservice_domain %>.freshservice.com",
       "path": "/api/v2/agents",
       "headers": {
-        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>",
-        "Content-Type": "application/json",
-        "X-Freshservice-API-Version": "2.0"
+        "Authorization": "Basic <%= encode(iparam.api_key + ':x') %>",
+        "Content-Type": "application/json"
       },
       "query": {
         "query": "<%= context.query %>",
@@ -37,9 +35,8 @@
       "host": "<%= iparam.freshservice_domain %>.freshservice.com",
       "path": "/api/v2/groups",
       "headers": {
-        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>",
-        "Content-Type": "application/json",
-        "X-Freshservice-API-Version": "2.0"
+        "Authorization": "Basic <%= encode(iparam.api_key + ':x') %>",
+        "Content-Type": "application/json"
       },
       "query": {
         "query": "<%= context.query %>",
@@ -55,9 +52,8 @@
       "host": "<%= iparam.freshservice_domain %>.freshservice.com",
       "path": "/api/v2/services",
       "headers": {
-        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>",
-        "Content-Type": "application/json",
-        "X-Freshservice-API-Version": "2.0"
+        "Authorization": "Basic <%= encode(iparam.api_key + ':x') %>",
+        "Content-Type": "application/json"
       },
       "query": {
         "query": "<%= context.query %>",
@@ -73,9 +69,8 @@
       "host": "<%= iparam.freshservice_domain %>.freshservice.com",
       "path": "/api/v2/assets",
       "headers": {
-        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>",
-        "Content-Type": "application/json",
-        "X-Freshservice-API-Version": "2.0"
+        "Authorization": "Basic <%= encode(iparam.api_key + ':x') %>",
+        "Content-Type": "application/json"
       },
       "query": {
         "query": "<%= context.query %>",
@@ -91,9 +86,8 @@
       "host": "<%= iparam.freshservice_domain %>.freshservice.com",
       "path": "/api/v2/changes",
       "headers": {
-        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>",
-        "Content-Type": "application/json",
-        "X-Freshservice-API-Version": "2.0"
+        "Authorization": "Basic <%= encode(iparam.api_key + ':x') %>",
+        "Content-Type": "application/json"
       }
     }
   }
