@@ -1,7 +1,3 @@
-// Import services
-const { clearSearchCache } = window.searchService;
-const { getCacheStats } = window.cacheService;
-
 // Initialize the app
 document.onreadystatechange = function() {
     if (document.readyState === 'interactive') {

@@ -3,8 +3,6 @@
  * Handles all search-related functionality with caching
  */
 
-const { getCachedData, setCachedData, invalidateCache } = window.cacheService;
-
 /**
  * Search users in Freshservice
  * @param {string} query - Search query
@@ -15,7 +13,7 @@ async function searchUsers(query, client) {
     console.log('Starting user search with query:', query);
     try {
         const cacheKey = `users_${query}`;
-        const cachedData = getCachedData(cacheKey);
+        const cachedData = window.cacheService.getCachedData(cacheKey);
         
         if (cachedData) {
             console.log('Returning cached user data:', cachedData);
@@ -43,7 +41,7 @@ async function searchUsers(query, client) {
         const users = Array.isArray(response.data) ? response.data : [];
         console.log('Processed user search results:', users);
         
-        setCachedData(cacheKey, users);
+        window.cacheService.setCachedData(cacheKey, users);
         return users;
     } catch (error) {
         console.error('Error in searchUsers:', error);
@@ -61,7 +59,7 @@ async function searchDepartments(query, client) {
     console.log('Starting department search with query:', query);
     try {
         const cacheKey = `departments_${query}`;
-        const cachedData = getCachedData(cacheKey);
+        const cachedData = window.cacheService.getCachedData(cacheKey);
         
         if (cachedData) {
             console.log('Returning cached department data:', cachedData);
@@ -89,7 +87,7 @@ async function searchDepartments(query, client) {
         const departments = Array.isArray(response.data) ? response.data : [];
         console.log('Processed department search results:', departments);
         
-        setCachedData(cacheKey, departments);
+        window.cacheService.setCachedData(cacheKey, departments);
         return departments;
     } catch (error) {
         console.error('Error in searchDepartments:', error);
@@ -107,7 +105,7 @@ async function searchItems(query, client) {
     console.log('Starting items search with query:', query);
     try {
         const cacheKey = `items_${query}`;
-        const cachedData = getCachedData(cacheKey);
+        const cachedData = window.cacheService.getCachedData(cacheKey);
         
         if (cachedData) {
             console.log('Returning cached items data:', cachedData);
@@ -141,7 +139,7 @@ async function searchItems(query, client) {
             ...assets.map(asset => ({ ...asset, type: 'asset' }))
         ];
 
-        setCachedData(cacheKey, items);
+        window.cacheService.setCachedData(cacheKey, items);
         return items;
     } catch (error) {
         console.error('Error in searchItems:', error);
@@ -153,9 +151,9 @@ async function searchItems(query, client) {
  * Clear all search-related cache
  */
 function clearSearchCache() {
-    invalidateCache('users');
-    invalidateCache('departments');
-    invalidateCache('items');
+    window.cacheService.invalidateCache('users');
+    window.cacheService.invalidateCache('departments');
+    window.cacheService.invalidateCache('items');
 }
 
 // Export the search service functions
