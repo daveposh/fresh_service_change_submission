@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Change Request Form - Configuration</title>
+    <script src="{{{appclient}}}"></script>
+    <link rel="stylesheet" type="text/css" href="styles/style.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="root">
+        <div class="config-container">
+            <h1>Change Request Form Configuration</h1>
+            <form id="configForm">
+                <div class="form-section">
+                    <h2>General Settings</h2>
+                    
+                    <div class="form-group">
+                        <label for="defaultRiskLevel">Default Risk Level</label>
+                        <select id="defaultRiskLevel" name="defaultRiskLevel">
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                            <option value="critical">Critical</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="approvalRequired">Require Approval</label>
+                        <input type="checkbox" id="approvalRequired" name="approvalRequired">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="notificationEmail">Notification Email</label>
+                        <input type="email" id="notificationEmail" name="notificationEmail">
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h2>Maintenance Windows</h2>
+                    <div id="maintenanceWindows">
+                        <!-- Maintenance windows will be added here dynamically -->
+                    </div>
+                    <button type="button" id="addWindow" class="btn-secondary">Add Maintenance Window</button>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Save Configuration</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Load current configuration
+            const config = await client.iparams.get();
+            
+            // Set form values
+            document.getElementById('defaultRiskLevel').value = config.defaultRiskLevel || 'medium';
+            document.getElementById('approvalRequired').checked = config.approvalRequired !== false;
+            document.getElementById('notificationEmail').value = config.notificationEmail || '';
+
+            // Handle maintenance windows
+            const maintenanceWindows = config.maintenanceWindows || [];
+            const windowsContainer = document.getElementById('maintenanceWindows');
+            
+            function createWindowElement(window, index) {
+                const div = document.createElement('div');
+                div.className = 'maintenance-window';
+                div.innerHTML = `
+                    <div class="form-group">
+                        <label>Window Name</label>
+                        <input type="text" name="windowName_${index}" value="${window.name || ''}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Start Time</label>
+                        <input type="time" name="startTime_${index}" value="${window.startTime || ''}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>End Time</label>
+                        <input type="time" name="endTime_${index}" value="${window.endTime || ''}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Days</label>
+                        <div class="checkbox-group">
+                            ${['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => `
+                                <label>
+                                    <input type="checkbox" name="days_${index}" value="${day}"
+                                        ${(window.days || []).includes(day) ? 'checked' : ''}>
+                                    ${day}
+                                </label>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <button type="button" class="btn-remove" onclick="this.parentElement.remove()">Remove Window</button>
+                `;
+                return div;
+            }
+
+            maintenanceWindows.forEach((window, index) => {
+                windowsContainer.appendChild(createWindowElement(window, index));
+            });
+
+            // Add new window
+            document.getElementById('addWindow').addEventListener('click', () => {
+                const index = windowsContainer.children.length;
+                windowsContainer.appendChild(createWindowElement({}, index));
+            });
+
+            // Save configuration
+            document.getElementById('configForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const formData = new FormData(e.target);
+                const config = {
+                    defaultRiskLevel: formData.get('defaultRiskLevel'),
+                    approvalRequired: formData.get('approvalRequired') === 'on',
+                    notificationEmail: formData.get('notificationEmail'),
+                    maintenanceWindows: []
+                };
+
+                // Collect maintenance windows
+                const windows = [];
+                let currentWindow = {};
+                let currentIndex = 0;
+
+                for (const [key, value] of formData.entries()) {
+                    if (key.startsWith('windowName_')) {
+                        if (Object.keys(currentWindow).length > 0) {
+                            windows.push(currentWindow);
+                        }
+                        currentWindow = { name: value };
+                        currentIndex = key.split('_')[1];
+                    } else if (key.startsWith('startTime_')) {
+                        currentWindow.startTime = value;
+                    } else if (key.startsWith('endTime_')) {
+                        currentWindow.endTime = value;
+                    } else if (key.startsWith('days_')) {
+                        if (!currentWindow.days) {
+                            currentWindow.days = [];
+                        }
+                        currentWindow.days.push(value);
+                    }
+                }
+                if (Object.keys(currentWindow).length > 0) {
+                    windows.push(currentWindow);
+                }
+
+                config.maintenanceWindows = windows;
+
+                try {
+                    await client.iparams.set(config);
+                    await client.interface.trigger("showNotify", {
+                        type: "success",
+                        message: "Configuration saved successfully"
+                    });
+                } catch (error) {
+                    await client.interface.trigger("showNotify", {
+                        type: "error",
+                        message: "Failed to save configuration"
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html> 

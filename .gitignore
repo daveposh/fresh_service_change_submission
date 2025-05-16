@@ -1,0 +1,30 @@
+# Node dependencies
+node_modules/
+
+# FDK local files
+.fdk/
+
+# Build artifacts
+dist/
+build/
+
+# Logs
+*.log
+fdk.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Sensitive config (do not commit secrets)
+config/iparams.json
+config/oauth_config.json
+config/app_settings.json
+
+# Environment files
+.env
+.env.*
+
+# Misc
+*.swp
+*.swo 

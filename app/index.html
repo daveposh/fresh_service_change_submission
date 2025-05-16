@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Freshservice Change Request App</title>
+    <script src="{{{appclient}}}"></script>
+    <link rel="stylesheet" type="text/css" href="styles/style.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <div id="root">
+      <form id="changeRequestForm" class="change-request-form">
+        <div class="form-section">
+          <h2>Basic Information</h2>
+          
+          <div class="form-group">
+            <label for="workspace">Workspace</label>
+            <input type="text" id="workspace" name="workspace" value="CXI Change Management" readonly style="background-color: #f5f5f5; cursor: not-allowed;" required>
+          </div>
+
+          <div class="form-group user-lookup">
+            <label for="requesterSearch">Requester</label>
+            <input type="text" id="requesterSearch" placeholder="Search users...">
+            <input type="hidden" id="requester" name="requester">
+            <div id="requesterResults" class="lookup-results"></div>
+          </div>
+
+          <div class="form-group department-lookup">
+            <label for="departmentSearch">Department</label>
+            <input type="text" id="departmentSearch" placeholder="Search departments...">
+            <input type="hidden" id="department" name="department">
+            <div id="departmentResults" class="lookup-results"></div>
+          </div>
+
+          <div class="form-group">
+            <label for="subject">Subject</label>
+            <input type="text" id="subject" name="subject" required>
+          </div>
+
+          <div class="form-group">
+            <label for="changeType">Change Type</label>
+            <select id="changeType" name="changeType" required>
+              <option value="">Select change type</option>
+              <option value="minor">Minor</option>
+              <option value="standard">Standard</option>
+              <option value="major">Major</option>
+              <option value="emergency">Emergency</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h2>Risk & Impact Assessment</h2>
+          
+          <div class="form-group">
+            <label for="risk">Risk Level</label>
+            <select id="risk" name="risk" required>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="critical">Critical</option>
+            </select>
+          </div>
+
+          <div class="questionnaire">
+            <h3>Business Impact</h3>
+            <div class="question-group">
+              <label>Business Criticality</label>
+              <div class="radio-group">
+                <label><input type="radio" name="businessCriticality" value="low"> Low</label>
+                <label><input type="radio" name="businessCriticality" value="medium"> Medium</label>
+                <label><input type="radio" name="businessCriticality" value="high"> High</label>
+                <label><input type="radio" name="businessCriticality" value="critical"> Critical</label>
+              </div>
+            </div>
+
+            <div class="question-group">
+              <label>Customer Impact</label>
+              <div class="radio-group">
+                <label><input type="radio" name="customerImpact" value="none"> None</label>
+                <label><input type="radio" name="customerImpact" value="low"> Low</label>
+                <label><input type="radio" name="customerImpact" value="medium"> Medium</label>
+                <label><input type="radio" name="customerImpact" value="high"> High</label>
+              </div>
+            </div>
+
+            <div class="question-group">
+              <label>Financial Impact</label>
+              <div class="radio-group">
+                <label><input type="radio" name="financialImpact" value="none"> None</label>
+                <label><input type="radio" name="financialImpact" value="low"> Low</label>
+                <label><input type="radio" name="financialImpact" value="medium"> Medium</label>
+                <label><input type="radio" name="financialImpact" value="high"> High</label>
+              </div>
+            </div>
+
+            <h3>Technical Risk</h3>
+            <div class="question-group">
+              <label>System Complexity</label>
+              <div class="radio-group">
+                <label><input type="radio" name="systemComplexity" value="low"> Low</label>
+                <label><input type="radio" name="systemComplexity" value="medium"> Medium</label>
+                <label><input type="radio" name="systemComplexity" value="high"> High</label>
+              </div>
+            </div>
+
+            <div class="question-group">
+              <label>Change Reversibility</label>
+              <div class="radio-group">
+                <label><input type="radio" name="changeReversibility" value="easy"> Easy</label>
+                <label><input type="radio" name="changeReversibility" value="moderate"> Moderate</label>
+                <label><input type="radio" name="changeReversibility" value="difficult"> Difficult</label>
+                <label><input type="radio" name="changeReversibility" value="irreversible"> Irreversible</label>
+              </div>
+            </div>
+
+            <div class="question-group">
+              <label>Testing Coverage</label>
+              <div class="radio-group">
+                <label><input type="radio" name="testingCoverage" value="comprehensive"> Comprehensive</label>
+                <label><input type="radio" name="testingCoverage" value="partial"> Partial</label>
+                <label><input type="radio" name="testingCoverage" value="minimal"> Minimal</label>
+                <label><input type="radio" name="testingCoverage" value="none"> None</label>
+              </div>
+            </div>
+
+            <h3>Operational Impact</h3>
+            <div class="question-group">
+              <label>Downtime Requirement</label>
+              <div class="radio-group">
+                <label><input type="radio" name="downtimeRequirement" value="none"> None</label>
+                <label><input type="radio" name="downtimeRequirement" value="scheduled"> Scheduled</label>
+                <label><input type="radio" name="downtimeRequirement" value="extended"> Extended</label>
+                <label><input type="radio" name="downtimeRequirement" value="emergency"> Emergency</label>
+              </div>
+            </div>
+
+            <div class="question-group">
+              <label>Resource Requirement</label>
+              <div class="radio-group">
+                <label><input type="radio" name="resourceRequirement" value="minimal"> Minimal</label>
+                <label><input type="radio" name="resourceRequirement" value="moderate"> Moderate</label>
+                <label><input type="radio" name="resourceRequirement" value="extensive"> Extensive</label>
+                <label><input type="radio" name="resourceRequirement" value="critical"> Critical</label>
+              </div>
+            </div>
+
+            <div class="question-group">
+              <label>Compliance Impact</label>
+              <div class="radio-group">
+                <label><input type="radio" name="complianceImpact" value="none"> None</label>
+                <label><input type="radio" name="complianceImpact" value="low"> Low</label>
+                <label><input type="radio" name="complianceImpact" value="medium"> Medium</label>
+                <label><input type="radio" name="complianceImpact" value="high"> High</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="impact">Impact Analysis</label>
+            <textarea id="impact" name="impact" rows="4" readonly></textarea>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h2>Implementation Details</h2>
+          
+          <div class="form-group">
+            <label for="implementationGroup">Implementation Group</label>
+            <input type="text" id="implementationGroup" name="implementationGroup" required>
+          </div>
+
+          <div class="form-group">
+            <label for="maintenanceWindow">Maintenance Window</label>
+            <select id="maintenanceWindow" name="maintenanceWindow" required>
+              <option value="">Select maintenance window</option>
+              <option value="standard">Standard</option>
+              <option value="extended">Extended</option>
+              <option value="emergency">Emergency</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="plannedStart">Planned Start Date</label>
+            <input type="datetime-local" id="plannedStart" name="plannedStart" required>
+          </div>
+
+          <div class="form-group">
+            <label for="plannedEnd">Planned End Date</label>
+            <input type="datetime-local" id="plannedEnd" name="plannedEnd" required>
+          </div>
+
+          <div class="form-group service-lookup">
+            <label for="serviceSearch">Associated Services/Assets</label>
+            <input type="text" id="serviceSearch" placeholder="Search services or assets...">
+            <input type="hidden" id="associatedAssets" name="associatedAssets">
+            <div id="serviceResults" class="lookup-results"></div>
+            <div id="selectedServices" class="selected-items"></div>
+          </div>
+
+          <div class="form-group">
+            <label for="description">Description</label>
+            <textarea id="description" name="description" rows="4" required></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="rolloutPlan">Rollout Plan</label>
+            <textarea id="rolloutPlan" name="rolloutPlan" rows="4" required></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="rollbackPlan">Rollback Plan</label>
+            <textarea id="rollbackPlan" name="rollbackPlan" rows="4" required></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="potentialImpact">Potential Impact</label>
+            <textarea id="potentialImpact" name="potentialImpact" rows="4" required></textarea>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="submit-button">Submit Change Request</button>
+        </div>
+      </form>
+    </div>
+    <script src="scripts/app.js"></script>
+  </body>
+</html>

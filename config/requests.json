@@ -1,0 +1,73 @@
+{
+  "createChange": {
+    "schema": {
+      "method": "POST",
+      "host": "<%= iparam.freshservice_domain %>",
+      "path": "/api/v2/changes",
+      "headers": {
+        "Authorization": "Basic <%= iparam.api_key %>",
+        "Content-Type": "application/json"
+      }
+    }
+  },
+  "searchUsers": {
+    "schema": {
+      "method": "GET",
+      "host": "<%= iparam.freshservice_domain %>",
+      "path": "/api/v2/requesters",
+      "headers": {
+        "Authorization": "Basic <%= iparam.api_key %>",
+        "Content-Type": "application/json"
+      },
+      "query": {
+        "query": "<%= query.query %>",
+        "page": "<%= query.page %>",
+        "per_page": "<%= query.per_page %>"
+      }
+    }
+  },
+  "searchGroups": {
+    "schema": {
+      "method": "GET",
+      "host": "<%= iparam.freshservice_domain %>",
+      "path": "/api/v2/search/groups",
+      "headers": {
+        "Authorization": "Basic <%= iparam.api_key %>",
+        "Content-Type": "application/json"
+      },
+      "query": {
+        "query": "<%= query.query %>"
+      }
+    }
+  },
+  "searchServices": {
+    "schema": {
+      "method": "GET",
+      "host": "<%= iparam.freshservice_domain %>",
+      "path": "/api/v2/services",
+      "headers": {
+        "Authorization": "Basic <%= iparam.api_key %>",
+        "Content-Type": "application/json"
+      },
+      "query": {
+        "query": "<%= query.query %>",
+        "page": "<%= query.page %>",
+        "per_page": "<%= query.per_page %>"
+      }
+    }
+  },
+  "searchAssets": {
+    "schema": {
+      "method": "GET",
+      "host": "<%= iparam.freshservice_domain %>",
+      "path": "/api/v2/assets",
+      "headers": {
+        "Authorization": "Basic <%= iparam.api_key %>",
+        "Content-Type": "application/json"
+      },
+      "query": {
+        "query": "<%= query.query %>"
+      }
+    }
+  }
+} 

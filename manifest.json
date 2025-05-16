@@ -1,0 +1,32 @@
+{
+  "platform-version": "2.3",
+  "product": {
+    "freshservice": {
+      "location": {
+        "full_page_app": {
+          "url": "index.html",
+          "icon": "styles/images/icon.svg"
+        }
+      },
+      "events": {
+        "onAppInstall": {
+          "handler": "onInstallHandler"
+        },
+        "onAppUninstall": {
+          "handler": "onUninstallHandler"
+        }
+      },
+      "requests": {
+        "createChange": {},
+        "searchUsers": {},
+        "searchGroups": {},
+        "searchServices": {},
+        "searchAssets": {}
+      }
+    }
+  },
+  "engines": {
+    "node": "18.20.8",
+    "fdk": "9.4.2"
+  }
+}
