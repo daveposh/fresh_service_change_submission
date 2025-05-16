@@ -656,24 +656,6 @@ function setupWorkspaceField() {
     }
 }
 
-// Setup search handlers
-function setupSearchHandlers(elements, timeoutManager, selectedServicesList) {
-    // Requester search handler
-    elements.requesterSearch.addEventListener('input', async function(e) {
-        await handleSearchInput(e, elements.requesterSearch, elements.requesterResults, elements.requesterInput, searchUsers, 'user', selectedServicesList);
-    });
-
-    // Department search handler
-    elements.departmentSearch.addEventListener('input', async function(e) {
-        await handleSearchInput(e, elements.departmentSearch, elements.departmentResults, elements.departmentInput, searchDepartments, 'department', selectedServicesList);
-    });
-
-    // Service search handler
-    elements.serviceSearch.addEventListener('input', async function(e) {
-        await handleSearchInput(e, elements.serviceSearch, elements.serviceResults, null, searchItems, 'service', selectedServicesList);
-    });
-}
-
 // Handle search input
 async function handleSearchInput(e, searchInput, resultsContainer, valueInput, searchFn, type, selectedList = null) {
     console.log(`Starting search for ${type}...`);
@@ -719,72 +701,11 @@ async function handleSearchInput(e, searchInput, resultsContainer, valueInput, s
     }
 }
 
-// Setup click outside handlers
-function setupClickOutsideHandlers() {
-    document.addEventListener('click', function(e) {
-        if (!e.target.closest('.user-lookup')) {
-            requesterResults.classList.remove('active');
-        }
-        if (!e.target.closest('.department-lookup')) {
-            departmentResults.classList.remove('active');
-        }
-        if (!e.target.closest('.service-lookup')) {
-            serviceResults.classList.remove('active');
-        }
-    });
-}
-
-// Setup form submission handler
-function setupFormSubmissionHandler(form, selectedServicesList) {
-    form.addEventListener('submit', async function(e) {
-        e.preventDefault();
-        if (!requesterInput.value) {
-            await client.interface.trigger('showNotify', {
-                type: 'error',
-                message: 'Please select a requester'
-            });
-            return;
-        }
-        if (!departmentInput.value) {
-            await client.interface.trigger('showNotify', {
-                type: 'error',
-                message: 'Please select a department'
-            });
-            return;
-        }
-        try {
-            const formData = new FormData(form);
-            const { changeRequest, changePayload } = await handleFormSubmission(formData, calculateRiskAndImpact);
-            const result = await showChangeConfirmation(changeRequest);
-            if (result === "Save") {
-                const response = await makeRequestWithTimeout(async () => {
-                    return await makeApiRequest('POST', '/api/v2/changes', {
-                        body: changePayload
-                    });
-                });
-                
-                if (response.status === 201) {
-                    const changeData = response.data;
-                    await client.interface.trigger('showNotify', {
-                        type: 'success',
-                        message: `Change request created successfully with ID: ${changeData.id}`
-                    });
-                    form.reset();
-                    selectedServicesList.clear();
-                    updateSelectedServices(selectedServicesList);
-                }
-            }
-        } catch (error) {
-            await handleErr(error);
-        }
-    });
-}
-
 function initializeApp() {
     console.log('Starting app initialization...');
     try {
         // Setup form elements
-        setupFormElements();
+        const elements = setupFormElements();
         console.log('Form elements setup complete');
 
         // Setup workspace field
@@ -805,55 +726,99 @@ function initializeApp() {
             }
         };
 
-        const selectedServicesList = [];
-        const searchElements = [
-            {
-                input: document.getElementById('requesterSearch'),
-                results: document.getElementById('requesterResults'),
-                value: document.getElementById('requester'),
-                searchFn: searchUsers,
-                type: 'user'
-            },
-            {
-                input: document.getElementById('departmentSearch'),
-                results: document.getElementById('departmentResults'),
-                value: document.getElementById('department'),
-                searchFn: searchDepartments,
-                type: 'department'
-            },
-            {
-                input: document.getElementById('serviceSearch'),
-                results: document.getElementById('serviceResults'),
-                value: document.getElementById('associatedAssets'),
-                searchFn: searchItems,
-                type: 'service',
-                selectedList: selectedServicesList
-            }
-        ];
+        const selectedServicesList = new Set();
 
-        console.log('Setting up search handlers...');
-        setupSearchHandlers(searchElements, timeoutManager, selectedServicesList);
+        // Setup search handlers for each search element
+        if (elements.requesterSearch && elements.requesterResults && elements.requesterInput) {
+            elements.requesterSearch.addEventListener('input', async function(e) {
+                await handleSearchInput(e, elements.requesterSearch, elements.requesterResults, elements.requesterInput, searchUsers, 'user');
+            });
+        }
+
+        if (elements.departmentSearch && elements.departmentResults && elements.departmentInput) {
+            elements.departmentSearch.addEventListener('input', async function(e) {
+                await handleSearchInput(e, elements.departmentSearch, elements.departmentResults, elements.departmentInput, searchDepartments, 'department');
+            });
+        }
+
+        if (elements.serviceSearch && elements.serviceResults) {
+            elements.serviceSearch.addEventListener('input', async function(e) {
+                await handleSearchInput(e, elements.serviceSearch, elements.serviceResults, null, searchItems, 'service', selectedServicesList);
+            });
+        }
+
         console.log('Search handlers setup complete');
 
         // Setup click outside handlers
-        setupClickOutsideHandlers();
+        document.addEventListener('click', function(e) {
+            if (elements.requesterResults && !e.target.closest('.user-lookup')) {
+                elements.requesterResults.classList.remove('active');
+            }
+            if (elements.departmentResults && !e.target.closest('.department-lookup')) {
+                elements.departmentResults.classList.remove('active');
+            }
+            if (elements.serviceResults && !e.target.closest('.service-lookup')) {
+                elements.serviceResults.classList.remove('active');
+            }
+        });
         console.log('Click outside handlers setup complete');
 
         // Setup form submission
-        const form = document.getElementById('changeRequestForm');
-        setupFormSubmissionHandler(form, selectedServicesList);
+        if (elements.form) {
+            elements.form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                if (!elements.requesterInput.value) {
+                    await client.interface.trigger('showNotify', {
+                        type: 'error',
+                        message: 'Please select a requester'
+                    });
+                    return;
+                }
+                if (!elements.departmentInput.value) {
+                    await client.interface.trigger('showNotify', {
+                        type: 'error',
+                        message: 'Please select a department'
+                    });
+                    return;
+                }
+                try {
+                    const formData = new FormData(elements.form);
+                    const { changeRequest, changePayload } = await handleFormSubmission(formData, calculateRiskAndImpact);
+                    const result = await showChangeConfirmation(changeRequest);
+                    if (result === "Save") {
+                        const response = await makeRequestWithTimeout(async () => {
+                            return await client.request.invoke('createChange', {
+                                body: JSON.stringify(changePayload)
+                            });
+                        });
+                        
+                        if (response.status === 201) {
+                            const changeData = response.data;
+                            await client.interface.trigger('showNotify', {
+                                type: 'success',
+                                message: `Change request created successfully with ID: ${changeData.id}`
+                            });
+                            elements.form.reset();
+                            selectedServicesList.clear();
+                            updateSelectedServices(selectedServicesList);
+                        }
+                    }
+                } catch (error) {
+                    await handleErr(error);
+                }
+            });
+        }
         console.log('Form submission handler setup complete');
 
         // Setup questionnaire listeners
-        const questionnaireInputs = document.querySelectorAll('.questionnaire input[type="radio"]');
-        const riskSelect = document.getElementById('risk');
-        
-        questionnaireInputs.forEach(input => {
-            input.addEventListener('change', () => {
-                console.log('Questionnaire input changed, updating risk and impact...');
-                updateRiskAndImpact(questionnaireInputs, riskSelect);
+        if (elements.questionnaireInputs && elements.riskSelect) {
+            elements.questionnaireInputs.forEach(input => {
+                input.addEventListener('change', () => {
+                    console.log('Questionnaire input changed, updating risk and impact...');
+                    updateRiskAndImpact(elements.questionnaireInputs, elements.riskSelect);
+                });
             });
-        });
+        }
         console.log('Questionnaire listeners setup complete');
 
     } catch (error) {
