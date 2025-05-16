@@ -1,72 +1,93 @@
 {
-  "createChange": {
+  "validateAuth": {
     "schema": {
-      "method": "POST",
-      "host": "<%= iparam.freshservice_domain %>",
-      "path": "/api/v2/changes",
+      "method": "GET",
+      "host": "<%= iparam.freshservice_domain %>.freshservice.com",
+      "path": "/api/v2/tickets",
       "headers": {
-        "Authorization": "Basic <%= iparam.api_key %>",
-        "Content-Type": "application/json"
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>",
+        "Content-Type": "application/json",
+        "X-Freshservice-API-Version": "2.0"
       }
     }
   },
   "searchUsers": {
     "schema": {
       "method": "GET",
-      "host": "<%= iparam.freshservice_domain %>",
-      "path": "/api/v2/requesters",
+      "host": "<%= iparam.freshservice_domain %>.freshservice.com",
+      "path": "/api/v2/agents",
       "headers": {
-        "Authorization": "Basic <%= iparam.api_key %>",
-        "Content-Type": "application/json"
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>",
+        "Content-Type": "application/json",
+        "X-Freshservice-API-Version": "2.0"
       },
       "query": {
-        "query": "<%= query.query %>",
-        "page": "<%= query.page %>",
-        "per_page": "<%= query.per_page %>"
+        "query": "<%= context.query %>",
+        "page": "<%= context.page %>",
+        "per_page": "<%= context.per_page %>"
       }
     }
   },
   "searchGroups": {
     "schema": {
       "method": "GET",
-      "host": "<%= iparam.freshservice_domain %>",
-      "path": "/api/v2/search/groups",
+      "host": "<%= iparam.freshservice_domain %>.freshservice.com",
+      "path": "/api/v2/groups",
       "headers": {
-        "Authorization": "Basic <%= iparam.api_key %>",
-        "Content-Type": "application/json"
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>",
+        "Content-Type": "application/json",
+        "X-Freshservice-API-Version": "2.0"
       },
       "query": {
-        "query": "<%= query.query %>"
+        "query": "<%= context.query %>",
+        "page": "<%= context.page %>",
+        "per_page": "<%= context.per_page %>"
       }
     }
   },
   "searchServices": {
     "schema": {
       "method": "GET",
-      "host": "<%= iparam.freshservice_domain %>",
+      "host": "<%= iparam.freshservice_domain %>.freshservice.com",
       "path": "/api/v2/services",
       "headers": {
-        "Authorization": "Basic <%= iparam.api_key %>",
-        "Content-Type": "application/json"
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>",
+        "Content-Type": "application/json",
+        "X-Freshservice-API-Version": "2.0"
       },
       "query": {
-        "query": "<%= query.query %>",
-        "page": "<%= query.page %>",
-        "per_page": "<%= query.per_page %>"
+        "query": "<%= context.query %>",
+        "page": "<%= context.page %>",
+        "per_page": "<%= context.per_page %>"
       }
     }
   },
   "searchAssets": {
     "schema": {
       "method": "GET",
-      "host": "<%= iparam.freshservice_domain %>",
+      "host": "<%= iparam.freshservice_domain %>.freshservice.com",
       "path": "/api/v2/assets",
       "headers": {
-        "Authorization": "Basic <%= iparam.api_key %>",
-        "Content-Type": "application/json"
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>",
+        "Content-Type": "application/json",
+        "X-Freshservice-API-Version": "2.0"
       },
       "query": {
-        "query": "<%= query.query %>"
+        "query": "<%= context.query %>",
+        "page": "<%= context.page %>",
+        "per_page": "<%= context.per_page %>"
+      }
+    }
+  },
+  "createChange": {
+    "schema": {
+      "method": "POST",
+      "host": "<%= iparam.freshservice_domain %>.freshservice.com",
+      "path": "/api/v2/changes",
+      "headers": {
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>",
+        "Content-Type": "application/json",
+        "X-Freshservice-API-Version": "2.0"
       }
     }
   }

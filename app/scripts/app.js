@@ -280,19 +280,7 @@ function handleApiError(error, context) {
 async function validateApiAuth() {
     console.log('Validating API authentication...');
     try {
-        const { iparams } = await client.data.get('iparams');
-        if (!iparams.freshservice_domain || !iparams.api_key) {
-            throw new Error('Missing API configuration');
-        }
-
-        // Test authentication by making a simple API call
-        const response = await client.request.get(`https://${iparams.freshservice_domain}/api/v2/tickets`, {
-            headers: {
-                ...commonHeaders,
-                'Authorization': `Basic ${btoa(iparams.api_key + ':X')}`
-            }
-        });
-
+        const response = await client.request.invokeTemplate('validateAuth', {});
         if (!response || response.status !== 200) {
             throw new Error('Authentication validation failed');
         }
@@ -338,31 +326,31 @@ async function handleAuthError(error) {
     window.cacheService.clearCache();
 }
 
+// Validate API configuration
+async function validateApiConfig() {
+    const { iparams } = await client.data.get('iparams');
+    if (!iparams.freshservice_domain || !iparams.api_key) {
+        throw new Error('Missing API configuration');
+    }
+    return iparams;
+}
+
+// Process API response
+function processApiResponse(response, type) {
+    if (response && response.data) {
+        window.cacheService.setCachedData(`${type}_all`, response.data);
+        console.log(`Cached ${response.data.length} ${type}`);
+        return response.data;
+    }
+    throw new Error(`Invalid response format for ${type}`);
+}
+
 // Enhanced fetch and cache with auth check
 async function fetchAndCacheData(type, fetchFn) {
     try {
-        // Get API configuration
-        const { iparams } = await client.data.get('iparams');
-        if (!iparams.freshservice_domain || !iparams.api_key) {
-            throw new Error('Missing API configuration');
-        }
-
-        // Add authentication headers to the request
-        const headers = {
-            ...commonHeaders,
-            'Authorization': `Basic ${btoa(iparams.api_key + ':X')}`
-        };
-
-        const response = await makeRequestWithTimeout(async () => {
-            return await fetchFn(headers);
-        });
-
-        if (response && response.data) {
-            window.cacheService.setCachedData(`${type}_all`, response.data);
-            console.log(`Cached ${response.data.length} ${type}`);
-            return response.data;
-        }
-        throw new Error(`Invalid response format for ${type}`);
+        await validateApiConfig();
+        const response = await makeRequestWithTimeout(fetchFn);
+        return processApiResponse(response, type);
     } catch (error) {
         if (error.status === 401 || error.status === 403) {
             await handleAuthError(error);
@@ -396,10 +384,13 @@ function fetchSingleType(type) {
     const config = DATA_TYPES[type];
     if (!config) return null;
 
-    return fetchAndCacheData(type, async (headers) => {
-        return await client.request.invoke(config.method, {
-            query: { query: '', page: 1, per_page: 100 },
-            headers: headers
+    return fetchAndCacheData(type, async () => {
+        return await client.request.invokeTemplate(config.method, {
+            context: {
+                query: '',
+                page: 1,
+                per_page: 100
+            }
         });
     });
 }
@@ -781,7 +772,7 @@ async function updateSelectedServices(selectedList) {
     });
 }
 
-// Form submission handler
+// Handle form submission
 async function handleFormSubmission(formData, calculateRiskAndImpact) {
     const changeRequest = {};
     
@@ -825,25 +816,9 @@ async function handleFormSubmission(formData, calculateRiskAndImpact) {
     }
 
     try {
-        // Get API configuration
-        const { iparams } = await client.data.get('iparams');
-        if (!iparams.freshservice_domain || !iparams.api_key) {
-            throw new Error('Missing API configuration');
-        }
-
-        // Add authentication headers
-        const headers = {
-            ...commonHeaders,
-            'Authorization': `Basic ${btoa(iparams.api_key + ':X')}`
-        };
-
-        const response = await client.request.post(
-            `https://${iparams.freshservice_domain}/api/v2/changes`,
-            {
-                headers,
-                body: JSON.stringify(changePayload)
-            }
-        );
+        const response = await client.request.invokeTemplate('createChange', {
+            body: JSON.stringify(changePayload)
+        });
 
         if (response.status === 201) {
             return { changeRequest, changePayload, response: response.data };
@@ -1136,7 +1111,7 @@ function setupFormSubmissionHandler(elements, selectedServicesList) {
             const result = await showChangeConfirmation(changeRequest);
             if (result === "Save") {
                 const response = await makeRequestWithTimeout(async () => {
-                    return await client.request.invoke('createChange', {
+                    return await client.request.invokeTemplate('createChange', {
                         body: JSON.stringify(changePayload)
                     });
                 });

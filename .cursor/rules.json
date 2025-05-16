@@ -1,0 +1,58 @@
+{
+    "rules": [
+        {
+            "name": "Function Complexity Limit",
+            "description": "Maintain function complexity below 7 to ensure code maintainability and readability",
+            "pattern": "function\\s+\\w+\\s*\\([^)]*\\)\\s*\\{",
+            "message": "Function complexity should be kept below 7. Consider breaking down complex functions into smaller, more focused functions.",
+            "severity": "warning",
+            "complexity": {
+                "max": 7,
+                "metrics": [
+                    "cyclomatic",
+                    "cognitive"
+                ]
+            },
+            "examples": {
+                "bad": [
+                    "function complexFunction() {",
+                    "    if (condition1) {",
+                    "        if (condition2) {",
+                    "            if (condition3) {",
+                    "                // Too many nested conditions",
+                    "            }",
+                    "        }",
+                    "    }",
+                    "}"
+                ],
+                "good": [
+                    "function simpleFunction() {",
+                    "    if (condition) {",
+                    "        handleCondition();",
+                    "    }",
+                    "}",
+                    "",
+                    "function handleCondition() {",
+                    "    // Handle specific condition",
+                    "}"
+                ]
+            },
+            "refactoring": {
+                "steps": [
+                    "Identify the main responsibilities of the complex function",
+                    "Extract each responsibility into a separate function",
+                    "Keep the original function as an orchestrator",
+                    "Ensure each new function has a single responsibility",
+                    "Maintain clear function names that describe their purpose"
+                ],
+                "benefits": [
+                    "Improved code readability",
+                    "Easier testing and maintenance",
+                    "Better error handling",
+                    "Reduced cognitive load",
+                    "Easier to understand and modify"
+                ]
+            }
+        }
+    ]
+} 

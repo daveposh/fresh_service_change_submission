@@ -5,7 +5,7 @@
       "location": {
         "full_page_app": {
           "url": "index.html",
-          "icon": "styles/images/icon.svg"
+          "icon": "icon.svg"
         }
       },
       "events": {
@@ -17,11 +17,12 @@
         }
       },
       "requests": {
-        "createChange": {},
+        "validateAuth": {},
         "searchUsers": {},
         "searchGroups": {},
         "searchServices": {},
-        "searchAssets": {}
+        "searchAssets": {},
+        "createChange": {}
       }
     }
   },
