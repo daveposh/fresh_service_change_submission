@@ -1,0 +1,131 @@
+{
+  "freshservice_domain": {
+    "display_name": "Freshservice Domain",
+    "description": "Your Freshservice domain (e.g., yourdomain.freshservice.com)",
+    "type": "text",
+    "required": true,
+    "secure": false
+  },
+  "api_key": {
+    "display_name": "API Key",
+    "description": "Your Freshservice API key",
+    "type": "text",
+    "required": true,
+    "secure": true
+  },
+  "defaultRiskLevel": {
+    "display_name": "Default Risk Level",
+    "description": "Default risk level for new change requests",
+    "type": "dropdown",
+    "required": false,
+    "options": ["low", "medium", "high", "critical"],
+    "default_value": "medium"
+  },
+  "approvalRequired": {
+    "display_name": "Require Approval",
+    "description": "Whether change requests require approval before implementation",
+    "type": "checkbox",
+    "required": false,
+    "default_value": true
+  },
+  "notificationEmail": {
+    "display_name": "Notification Email",
+    "description": "Email address to receive change request notifications",
+    "type": "email",
+    "required": false,
+    "default_value": ""
+  },
+  "businessImpactWeight": {
+    "display_name": "Business Impact Weight",
+    "description": "Weight for business impact in risk calculation (0-1, e.g., 0.3)",
+    "type": "text",
+    "required": false,
+    "default_value": "0.3"
+  },
+  "technicalImpactWeight": {
+    "display_name": "Technical Impact Weight",
+    "description": "Weight for technical impact in risk calculation (0-1, e.g., 0.4)",
+    "type": "text",
+    "required": false,
+    "default_value": "0.4"
+  },
+  "operationalImpactWeight": {
+    "display_name": "Operational Impact Weight",
+    "description": "Weight for operational impact in risk calculation (0-1, e.g., 0.3)",
+    "type": "text",
+    "required": false,
+    "default_value": "0.3"
+  },
+  "lowRiskThreshold": {
+    "display_name": "Low Risk Threshold",
+    "description": "Maximum score for low risk level",
+    "type": "text",
+    "required": false,
+    "default_value": "1.0"
+  },
+  "mediumRiskThreshold": {
+    "display_name": "Medium Risk Threshold",
+    "description": "Maximum score for medium risk level",
+    "type": "text",
+    "required": false,
+    "default_value": "2.0"
+  },
+  "highRiskThreshold": {
+    "display_name": "High Risk Threshold",
+    "description": "Maximum score for high risk level",
+    "type": "text",
+    "required": false,
+    "default_value": "3.0"
+  },
+  "criticalRiskThreshold": {
+    "display_name": "Critical Risk Threshold",
+    "description": "Maximum score for critical risk level",
+    "type": "text",
+    "required": false,
+    "default_value": "4.0"
+  },
+  "standardBusinessHoursStart": {
+    "display_name": "Standard Business Hours Start",
+    "description": "Start time for standard business hours (HH:MM)",
+    "type": "text",
+    "required": false,
+    "default_value": "09:00"
+  },
+  "standardBusinessHoursEnd": {
+    "display_name": "Standard Business Hours End",
+    "description": "End time for standard business hours (HH:MM)",
+    "type": "text",
+    "required": false,
+    "default_value": "17:00"
+  },
+  "weekendWindowStart": {
+    "display_name": "Weekend Window Start",
+    "description": "Start time for weekend maintenance window (HH:MM)",
+    "type": "text",
+    "required": false,
+    "default_value": "00:00"
+  },
+  "weekendWindowEnd": {
+    "display_name": "Weekend Window End",
+    "description": "End time for weekend maintenance window (HH:MM)",
+    "type": "text",
+    "required": false,
+    "default_value": "23:59"
+  },
+  "businessDays": {
+    "display_name": "Business Days",
+    "description": "Days considered as business days",
+    "type": "multiselect",
+    "required": false,
+    "options": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+    "default_value": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+  },
+  "weekendDays": {
+    "display_name": "Weekend Days",
+    "description": "Days considered as weekend days",
+    "type": "multiselect",
+    "required": false,
+    "options": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+    "default_value": ["Saturday", "Sunday"]
+  }
+} 

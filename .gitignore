@@ -17,9 +17,9 @@ fdk.log
 Thumbs.db
 
 # Sensitive config (do not commit secrets)
-config/iparams.json
+
 config/oauth_config.json
-config/app_settings.json
+
 
 # Environment files
 .env
