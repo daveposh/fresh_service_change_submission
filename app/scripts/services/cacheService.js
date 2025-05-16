@@ -103,7 +103,7 @@ function clearCacheStats() {
     CACHE_CONFIG.stats.misses = 0;
 }
 
-module.exports = {
+app.modules.services.cache = {
     getCachedData,
     setCachedData,
     invalidateCache,

@@ -1,6 +1,6 @@
 // Import services
-const { clearSearchCache } = require('./services/searchService');
-const { getCacheStats } = require('./services/cacheService');
+const { clearSearchCache } = app.modules.services.search;
+const { getCacheStats } = app.modules.services.cache;
 
 // Initialize the app
 document.onreadystatechange = function() {
