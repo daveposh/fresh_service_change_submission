@@ -1,12 +1,17 @@
 // Initialize the app
 document.onreadystatechange = function() {
     if (document.readyState === 'interactive') {
+        console.log('Document ready, initializing app...');
         app.initialized()
             .then(function getClient(_client) {
+                console.log('App initialized successfully');
                 window.client = _client;
                 initializeApp();
             })
-            .catch(handleErr);
+            .catch(function(error) {
+                console.error('Error initializing app:', error);
+                handleErr(error);
+            });
     }
 };
 
@@ -729,61 +734,31 @@ function setupSearchHandlers(elements, timeoutManager, selectedServicesList) {
 
 // Handle search input
 async function handleSearchInput(e, searchInput, resultsContainer, valueInput, searchFn, type, selectedList = null) {
-    await Promise.resolve();
+    console.log(`Handling search input for ${type}...`);
     const query = e.target.value.trim();
     
     if (query.length < 2) {
+        console.log('Query too short, clearing results');
         resultsContainer.innerHTML = '';
-        resultsContainer.classList.remove('active');
         return;
     }
 
-    timeoutManager.set(async () => {
-        const items = await searchFn(query);
-        resultsContainer.innerHTML = '';
+    try {
+        console.log(`Making API request for ${type} search...`);
+        const results = await searchFn(query);
+        console.log(`Received ${results.length} results for ${type}`);
         
-        if (items.length === 0) {
-            resultsContainer.innerHTML = '<div class="no-results">No items found</div>';
-        } else if (type === 'service') {
-            await displayItemResults(items, resultsContainer, selectedList);
-        } else {
-            items.forEach(item => {
-                const div = document.createElement('div');
-                div.className = 'lookup-item';
-                if (type === 'user') {
-                    div.innerHTML = `
-                        <div class="user-avatar">${item.first_name[0]}${item.last_name[0]}</div>
-                        <div class="user-info">
-                            <div class="user-name">${item.first_name} ${item.last_name}</div>
-                            <div class="user-email">${item.email}</div>
-                        </div>
-                    `;
-                } else {
-                    div.innerHTML = `
-                        <div class="user-info">
-                            <div class="user-name">${item.name}</div>
-                            <div class="user-email">${item.description || 'No description available'}</div>
-                        </div>
-                    `;
-                }
-                
-                div.addEventListener('click', () => {
-                    if (type === 'user') {
-                        searchInput.value = `${item.first_name} ${item.last_name}`;
-                        valueInput.value = item.id;
-                    } else {
-                        searchInput.value = item.name;
-                        valueInput.value = item.id;
-                    }
-                    resultsContainer.classList.remove('active');
-                });
-                
-                resultsContainer.appendChild(div);
-            });
+        if (results.length === 0) {
+            resultsContainer.innerHTML = '<div class="no-results">No results found</div>';
+            return;
         }
-        
-        resultsContainer.classList.add('active');
-    }, 300);
+
+        await displayItemResults(results, resultsContainer, selectedList);
+        console.log('Results displayed successfully');
+    } catch (error) {
+        console.error(`Error in ${type} search:`, error);
+        resultsContainer.innerHTML = '<div class="error">Error performing search</div>';
+    }
 }
 
 // Setup click outside handlers
@@ -848,35 +823,18 @@ function setupFormSubmissionHandler(form, selectedServicesList) {
 }
 
 async function initializeApp() {
+    console.log('Starting app initialization...');
     try {
-        // Get configuration
-        const { iparams } = await client.data.get('iparams');
-        
-        // Check if domain is configured
-        if (!iparams.freshservice_domain) {
-            await client.interface.trigger('showNotify', {
-                type: 'error',
-                message: 'Freshservice domain not configured. Please configure the app settings.'
-            });
-            return;
-        }
-
-        // Validate configuration
-        const isValid = await validateConfiguration();
-        if (!isValid) {
-            console.error('Invalid configuration');
-            return;
-        }
-
         // Setup form elements
-        const elements = setupFormElements();
-        
+        setupFormElements();
+        console.log('Form elements setup complete');
+
         // Setup workspace field
         setupWorkspaceField();
+        console.log('Workspace field setup complete');
 
-        // Create a single timeout manager object
+        // Setup search handlers
         const timeoutManager = {
-            timeout: null,
             clear() {
                 if (this.timeout) {
                     clearTimeout(this.timeout);
@@ -889,24 +847,60 @@ async function initializeApp() {
             }
         };
 
-        const selectedServicesList = new Set();
+        const selectedServicesList = [];
+        const searchElements = [
+            {
+                input: document.getElementById('requesterSearch'),
+                results: document.getElementById('requesterResults'),
+                value: document.getElementById('requester'),
+                searchFn: searchUsers,
+                type: 'user'
+            },
+            {
+                input: document.getElementById('departmentSearch'),
+                results: document.getElementById('departmentResults'),
+                value: document.getElementById('department'),
+                searchFn: searchDepartments,
+                type: 'department'
+            },
+            {
+                input: document.getElementById('serviceSearch'),
+                results: document.getElementById('serviceResults'),
+                value: document.getElementById('associatedAssets'),
+                searchFn: searchItems,
+                type: 'service',
+                selectedList: selectedServicesList
+            }
+        ];
 
-        // Add event listeners to all questionnaire inputs
-        elements.questionnaireInputs.forEach(input => {
-            input.addEventListener('change', () => updateRiskAndImpact(elements.questionnaireInputs, elements.riskSelect));
-        });
-
-        // Setup search handlers
-        setupSearchHandlers(elements, timeoutManager, selectedServicesList);
+        console.log('Setting up search handlers...');
+        setupSearchHandlers(searchElements, timeoutManager, selectedServicesList);
+        console.log('Search handlers setup complete');
 
         // Setup click outside handlers
         setupClickOutsideHandlers();
+        console.log('Click outside handlers setup complete');
 
-        // Setup form submission handler
-        setupFormSubmissionHandler(elements.form, selectedServicesList);
+        // Setup form submission
+        const form = document.getElementById('changeRequestForm');
+        setupFormSubmissionHandler(form, selectedServicesList);
+        console.log('Form submission handler setup complete');
+
+        // Setup questionnaire listeners
+        const questionnaireInputs = document.querySelectorAll('.questionnaire input[type="radio"]');
+        const riskSelect = document.getElementById('risk');
+        
+        questionnaireInputs.forEach(input => {
+            input.addEventListener('change', () => {
+                console.log('Questionnaire input changed, updating risk and impact...');
+                updateRiskAndImpact(questionnaireInputs, riskSelect);
+            });
+        });
+        console.log('Questionnaire listeners setup complete');
 
     } catch (error) {
-        await handleErr(error);
+        console.error('Error in initializeApp:', error);
+        handleErr(error);
     }
 }
 
