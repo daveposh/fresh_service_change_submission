@@ -235,22 +235,6 @@ const commonHeaders = {
     'X-Freshservice-API-Version': '2.0'
 };
 
-// Cache management functions
-function getCachedData(key) {
-    const cached = cacheConfig.cache.get(key);
-    if (cached && Date.now() - cached.timestamp < cacheConfig.maxAge) {
-        return cached.data;
-    }
-    return null;
-}
-
-function setCachedData(key, data) {
-    cacheConfig.cache.set(key, {
-        data,
-        timestamp: Date.now()
-    });
-}
-
 // Retry logic with exponential backoff
 async function retryWithBackoff(fn, retries = retryConfig.maxRetries, delay = retryConfig.initialDelay) {
     try {
@@ -291,54 +275,12 @@ function handleApiError(error, context) {
         : 'An unexpected error occurred. Please try again.';
 }
 
-// Enhanced API request logging
-async function makeApiRequest(method, endpoint, options = {}) {
-    console.log(`Making API request: ${method} ${endpoint}`, {
-        headers: options.headers,
-        query: options.query,
-        body: options.body
-    });
-
-    try {
-        const response = await client.request.invoke(method, endpoint, {
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Basic <%= iparam.api_key %>`
-            },
-            ...options
-        });
-
-        console.log(`API response for ${method} ${endpoint}:`, {
-            status: response.status,
-            data: response.data
-        });
-
-        if (response.status >= 400) {
-            throw { status: response.status, message: response.data };
-        }
-
-        return response;
-    } catch (error) {
-        console.error('API request failed:', {
-            method,
-            endpoint,
-            error: {
-                message: error.message,
-                status: error.status,
-                data: error.data,
-                stack: error.stack
-            }
-        });
-        throw error;
-    }
-}
-
 // User lookup functionality
 async function searchUsers(query) {
     console.log('Starting user search with query:', query);
     try {
         const cacheKey = `users_${query}`;
-        const cachedData = getCachedData(cacheKey);
+        const cachedData = window.cacheService.getCachedData(cacheKey);
         
         if (cachedData) {
             console.log('Returning cached user data:', cachedData);
@@ -370,7 +312,7 @@ async function searchUsers(query) {
         const users = Array.isArray(response.data) ? response.data : [];
         console.log('Processed user search results:', users);
         
-        setCachedData(cacheKey, users);
+        window.cacheService.setCachedData(cacheKey, users);
         return users;
     } catch (error) {
         console.error('Error in searchUsers:', error);
@@ -388,7 +330,7 @@ async function searchDepartments(query) {
     console.log('Starting department search with query:', query);
     try {
         const cacheKey = `departments_${query}`;
-        const cachedData = getCachedData(cacheKey);
+        const cachedData = window.cacheService.getCachedData(cacheKey);
         
         if (cachedData) {
             console.log('Returning cached department data:', cachedData);
@@ -420,7 +362,7 @@ async function searchDepartments(query) {
         const departments = Array.isArray(response.data) ? response.data : [];
         console.log('Processed department search results:', departments);
         
-        setCachedData(cacheKey, departments);
+        window.cacheService.setCachedData(cacheKey, departments);
         return departments;
     } catch (error) {
         console.error('Error in searchDepartments:', error);
@@ -438,7 +380,7 @@ async function searchItems(query) {
     console.log('Starting items search with query:', query);
     try {
         const cacheKey = `items_${query}`;
-        const cachedData = getCachedData(cacheKey);
+        const cachedData = window.cacheService.getCachedData(cacheKey);
         
         if (cachedData) {
             console.log('Returning cached items data:', cachedData);
@@ -474,7 +416,7 @@ async function searchItems(query) {
                 ...assets.map(asset => ({ ...asset, type: 'asset' }))
             ];
 
-            setCachedData(cacheKey, items);
+            window.cacheService.setCachedData(cacheKey, items);
             return items;
         });
 
@@ -767,7 +709,7 @@ async function handleSearchInput(e, searchInput, resultsContainer, valueInput, s
         }
 
         // Log cache statistics
-        const cacheStats = getCacheStats();
+        const cacheStats = window.cacheService.getCacheStats();
         console.log('Cache statistics:', cacheStats);
     } catch (error) {
         console.error(`Error in ${type} search:`, error);
