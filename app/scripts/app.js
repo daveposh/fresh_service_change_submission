@@ -437,54 +437,91 @@ async function fetchAndCacheData(type, fetchFn) {
 const DATA_TYPES = {
     users: {
         method: 'searchUsers',
+        searchMethod: 'searchUsers',
+        listMethod: 'listUsers',
         errorMessage: 'Failed to load users'
     },
     departments: {
         method: 'searchGroups',
+        searchMethod: 'searchGroups',
+        listMethod: 'listGroups',
         errorMessage: 'Failed to load departments'
     },
     services: {
         method: 'searchServices',
+        searchMethod: 'searchServices',
+        listMethod: 'listServices',
         errorMessage: 'Failed to load services'
     },
     assets: {
         method: 'searchAssets',
+        searchMethod: 'searchAssets',
+        listMethod: 'listAssets',
         errorMessage: 'Failed to load assets'
     }
 };
 
-// Fetch single data type
-function fetchSingleType(type) {
+/**
+ * Fetch single data type with proper API handling
+ * @param {string} type - The type of data to fetch
+ * @param {string} [searchQuery] - Optional search query
+ * @returns {Promise<Object>} The fetched data
+ */
+function fetchSingleType(type, searchQuery = '') {
     const config = DATA_TYPES[type];
-    if (!config) return null;
+    if (!config) {
+        console.error(`No configuration found for type: ${type}`);
+        return null;
+    }
+
+    // Determine if this is a search or list operation
+    const isSearch = searchQuery && searchQuery.trim() !== '';
+    const method = isSearch ? config.searchMethod : config.listMethod;
+
+    // Prepare context based on operation type
+    const context = {
+        page: 1,
+        per_page: 100
+    };
+
+    // Only add query parameter for search operations
+    if (isSearch) {
+        context.query = searchQuery.trim();
+    }
+
+    console.log(`Fetching ${type} using ${isSearch ? 'search' : 'list'} method:`, {
+        method,
+        isSearch,
+        context
+    });
 
     return fetchAndCacheData(type, async () => {
-        return await client.request.invokeTemplate(config.method, {
-            context: {
-                query: '',
-                page: 1,
-                per_page: 100
-            }
-        });
+        return await client.request.invokeTemplate(method, { context });
     });
 }
 
-// Validate and prepare cache
-async function validateAndPrepare() {
-    if (!await validateApiAuth()) {
-        throw { type: 'AUTH_ERROR', message: 'Authentication failed' };
-    }
-    return Object.keys(DATA_TYPES);
-}
-
-// Process single data type
-async function processSingleType(type) {
+/**
+ * Process single data type with improved error handling
+ * @param {string} type - The type of data to process
+ * @param {string} [searchQuery] - Optional search query
+ * @returns {Promise<Object>} Processing result
+ */
+async function processSingleType(type, searchQuery = '') {
     try {
         if (!type) {
             throw new Error('Type is required');
         }
-        await fetchSingleType(type);
-        return { type, success: true };
+
+        const result = await fetchSingleType(type, searchQuery);
+        if (!result) {
+            throw new Error(`No data returned for type: ${type}`);
+        }
+
+        return { 
+            type, 
+            success: true,
+            data: result
+        };
     } catch (error) {
         console.error(`Error processing type ${type}:`, error);
         return { 
@@ -498,15 +535,20 @@ async function processSingleType(type) {
     }
 }
 
-// Initialize cache
-async function initializeCache() {
+/**
+ * Initialize cache with improved error handling
+ * @param {string} [searchQuery] - Optional search query
+ * @returns {Promise<void>}
+ */
+async function initializeCache(searchQuery = '') {
     try {
         const types = await validateAndPrepare();
         if (!types || !Array.isArray(types)) {
             throw new Error('Invalid types returned from validateAndPrepare');
         }
 
-        const results = await Promise.all(types.map(processSingleType));
+        console.log('Initializing cache with types:', types);
+        const results = await Promise.all(types.map(type => processSingleType(type, searchQuery)));
         
         const failures = results.filter(r => !r.success);
         if (failures.length > 0) {
