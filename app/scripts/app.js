@@ -276,54 +276,128 @@ function handleApiError(error, context) {
         : 'An unexpected error occurred. Please try again.';
 }
 
-// Validate API authentication
-async function validateApiAuth() {
-    console.log('Validating API authentication...');
-    try {
-        const response = await client.request.invokeTemplate('validateAuth', {});
-        if (!response || response.status !== 200) {
-            throw new Error('Authentication validation failed');
-        }
-        return true;
-    } catch (error) {
-        console.error('Authentication error:', error);
-        await handleAuthError(error);
-        return false;
+/**
+ * Handle authentication errors with proper error messages
+ * @param {Error} error - The error object
+ * @returns {Promise<void>}
+ */
+async function handleAuthError(error) {
+    const errorMessage = getAuthErrorMessage(error);
+    console.error('Authentication error:', errorMessage);
+
+    await notifyUserOfAuthError(errorMessage);
+    await trackAuthError(error, errorMessage);
+    await notifyAdminsOfAuthError(error, errorMessage);
+    await clearStaleCache();
+}
+
+/**
+ * Get authentication error message
+ * @param {Error} error - The error object
+ * @returns {string} Error message
+ */
+function getAuthErrorMessage(error) {
+    if (!error || !error.status) {
+        return 'Authentication failed: Unknown error';
+    }
+
+    const errorMessages = {
+        502: 'Unable to connect to Freshservice. Please check your internet connection and try again.',
+        401: 'Invalid API credentials. Please check your API key.',
+        403: 'Access denied. Please check your API permissions.'
+    };
+
+    return `Authentication failed: ${errorMessages[error.status] || error.message || 'Unknown error'}`;
+}
+
+/**
+ * Notify user of authentication error
+ * @param {string} errorMessage - The error message
+ * @returns {Promise<void>}
+ */
+async function notifyUserOfAuthError(errorMessage) {
+    await client.interface.trigger('showNotify', {
+        type: 'error',
+        message: errorMessage
+    });
+}
+
+/**
+ * Track authentication error
+ * @param {Error} error - The error object
+ * @param {string} errorMessage - The error message
+ */
+function trackAuthError(error, errorMessage) {
+    if (window.errorTracker) {
+        window.errorTracker.trackError('Authentication', {
+            message: errorMessage,
+            originalError: error
+        });
     }
 }
 
-// Handle authentication errors
-async function handleAuthError(error) {
-    const errorMessage = 'Authentication failed: ' + (error.message || 'Unknown error');
-    console.error(errorMessage);
-
-    // Show error to user
-    await client.interface.trigger('showNotify', {
-        type: 'error',
-        message: 'Authentication error. Please refresh the page or contact support.'
-    });
-
-    // Track authentication failure
-    if (window.errorTracker) {
-        window.errorTracker.trackError('Authentication', error);
-    }
-
-    // Notify admins of authentication issues
+/**
+ * Notify admins of authentication error
+ * @param {Error} error - The error object
+ * @param {string} errorMessage - The error message
+ * @returns {Promise<void>}
+ */
+async function notifyAdminsOfAuthError(error, errorMessage) {
     try {
         await client.request.invoke('notifyAdmins', {
             subject: 'Authentication Error',
             message: JSON.stringify({
                 error: errorMessage,
                 timestamp: new Date().toISOString(),
-                stack: error.stack
+                stack: error?.stack || 'No stack trace available'
             }, null, 2)
         });
     } catch (notifyError) {
         console.error('Failed to notify admins of auth error:', notifyError);
     }
+}
 
-    // Clear any existing cache as it might be stale
-    window.cacheService.clearCache();
+/**
+ * Clear stale cache
+ */
+function clearStaleCache() {
+    if (window.cacheService) {
+        window.cacheService.clearCache();
+    }
+}
+
+/**
+ * Validate API authentication with retry logic
+ * @returns {Promise<boolean>}
+ */
+async function validateApiAuth() {
+    console.log('Validating API authentication...');
+    const maxRetries = 3;
+    let retryCount = 0;
+
+    while (retryCount < maxRetries) {
+        try {
+            const response = await client.request.invokeTemplate('validateAuth', {});
+            if (!response || response.status !== 200) {
+                throw new Error('Authentication validation failed');
+            }
+            console.log('API authentication successful');
+            return true;
+        } catch (error) {
+            retryCount++;
+            console.error(`Authentication attempt ${retryCount} failed:`, error);
+
+            if (retryCount === maxRetries) {
+                await handleAuthError(error);
+                return false;
+            }
+
+            // Wait before retrying (exponential backoff)
+            await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
+        }
+    }
+
+    return false;
 }
 
 // Validate API configuration
@@ -1212,35 +1286,36 @@ function setupQuestionnaireListeners(elements) {
     }
 }
 
+/**
+ * Initialize the application with proper error handling
+ */
 function initializeApp() {
     console.log('Starting app initialization...');
-    try {
-        // Validate authentication before proceeding
-        validateApiAuth().then(async (isAuthenticated) => {
+    
+    // Validate authentication before proceeding
+    validateApiAuth()
+        .then(async (isAuthenticated) => {
             if (!isAuthenticated) {
                 console.error('Authentication validation failed');
                 return;
             }
 
-            // Initialize cache
-            await initializeCache().then(() => {
-                console.log('Cache initialized successfully');
-            }).catch(error => {
-                console.error('Error initializing cache:', error);
-            });
-
-            // Setup form elements with validation
-            const elements = setupFormElements();
-            
-            // Setup workspace field
-            setupWorkspaceField();
-            console.log('Workspace field setup complete');
-
-            // Initialize selected services list
-            const selectedServicesList = new Set();
-
-            // Setup all event listeners with error handling
             try {
+                // Initialize cache
+                await initializeCache();
+                console.log('Cache initialized successfully');
+
+                // Setup form elements with validation
+                const elements = setupFormElements();
+                
+                // Setup workspace field
+                setupWorkspaceField();
+                console.log('Workspace field setup complete');
+
+                // Initialize selected services list
+                const selectedServicesList = new Set();
+
+                // Setup all event listeners with error handling
                 setupSearchEventListeners(elements, selectedServicesList);
                 console.log('Search handlers setup complete');
 
@@ -1253,26 +1328,42 @@ function initializeApp() {
                 setupQuestionnaireListeners(elements);
                 console.log('Questionnaire listeners setup complete');
             } catch (error) {
-                console.error('Error setting up event listeners:', error);
-                throw error;
+                console.error('Error during app initialization:', error);
+                handleErr(error);
             }
-        }).catch(error => {
+        })
+        .catch(error => {
             console.error('Error during app initialization:', error);
             handleErr(error);
         });
-
-    } catch (error) {
-        console.error('Error in initializeApp:', error);
-        handleErr(error);
-    }
 }
 
+/**
+ * Handle errors with proper error messages
+ * @param {Error|string} err - The error object or message
+ * @returns {Promise<void>}
+ */
 async function handleErr(err = 'None') {
-    console.error(`Error occurred. Details:`, err);
-    await client.interface.trigger('showNotify', {
-        type: 'error',
-        message: 'An error occurred. Please try again.'
-    });
+    console.error('Error occurred. Details:', err);
+    
+    let errorMessage = 'An error occurred. ';
+    
+    if (err instanceof Error) {
+        errorMessage += err.message;
+    } else if (typeof err === 'string') {
+        errorMessage += err;
+    } else if (err && typeof err === 'object') {
+        errorMessage += err.message || JSON.stringify(err);
+    }
+
+    try {
+        await client.interface.trigger('showNotify', {
+            type: 'error',
+            message: errorMessage
+        });
+    } catch (notifyError) {
+        console.error('Failed to show error notification:', notifyError);
+    }
 }
 
 // App lifecycle handlers
