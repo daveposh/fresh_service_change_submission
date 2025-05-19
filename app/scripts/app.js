@@ -480,10 +480,21 @@ async function validateAndPrepare() {
 // Process single data type
 async function processSingleType(type) {
     try {
+        if (!type) {
+            throw new Error('Type is required');
+        }
         await fetchSingleType(type);
         return { type, success: true };
     } catch (error) {
-        return { type, success: false, error };
+        console.error(`Error processing type ${type}:`, error);
+        return { 
+            type, 
+            success: false, 
+            error: {
+                message: error?.message || 'Unknown error',
+                stack: error?.stack
+            }
+        };
     }
 }
 
@@ -491,17 +502,30 @@ async function processSingleType(type) {
 async function initializeCache() {
     try {
         const types = await validateAndPrepare();
+        if (!types || !Array.isArray(types)) {
+            throw new Error('Invalid types returned from validateAndPrepare');
+        }
+
         const results = await Promise.all(types.map(processSingleType));
         
         const failures = results.filter(r => !r.success);
         if (failures.length > 0) {
-            throw { type: 'CACHE_ERROR', failures };
+            const errorDetails = {
+                type: 'CACHE_ERROR',
+                message: 'Failed to initialize cache',
+                failures: failures.map(f => ({
+                    type: f.type,
+                    error: f.error?.message || 'Unknown error'
+                }))
+            };
+            throw errorDetails;
         }
 
         cacheConfig.lastRefresh = Date.now();
         await notifySuccess('Search data loaded successfully');
     } catch (error) {
-        await handleError(error);
+        console.error('Cache initialization error:', error);
+        throw error;
     }
 }
 
@@ -555,42 +579,55 @@ const ErrorReporter = {
     }
 };
 
-// Handle errors
-async function handleError(error) {
-    // Capture and report error
-    ErrorReporter.captureError(error, {
-        cacheState: {
-            lastRefresh: cacheConfig.lastRefresh,
-            hasData: cacheConfig.cache.size > 0
-        }
-    });
-
-    // Notify user
-    await notifyError(getUserFriendlyError(error));
-
-    // Notify admins for critical errors
-    if (error.type === 'AUTH_ERROR' || error.type === 'CACHE_ERROR') {
-        await notifyAdmins('Cache System Error', {
-            error,
-            timestamp: new Date().toISOString(),
-            cacheState: cacheConfig
-        });
+/**
+ * Format error message
+ * @param {Error|string} err - The error object or message
+ * @returns {string} Formatted error message
+ */
+function formatErrorMessage(err) {
+    let errorMessage = 'An error occurred. ';
+    
+    if (err instanceof Error) {
+        errorMessage += err.message || 'Unknown error';
+    } else if (typeof err === 'string') {
+        errorMessage += err;
+    } else if (err && typeof err === 'object') {
+        errorMessage += err.message || JSON.stringify(err);
     }
 
-    // Clear cache if needed
-    if (error.type === 'AUTH_ERROR') {
-        window.cacheService.clearCache();
+    return errorMessage;
+}
+
+/**
+ * Show error notification
+ * @param {string} errorMessage - The error message to show
+ * @returns {Promise<void>}
+ */
+async function showErrorNotification(errorMessage) {
+    if (!client || !client.interface) {
+        console.error('Client interface not available for error notification');
+        return;
+    }
+
+    try {
+        await client.interface.trigger('showNotify', {
+            type: 'error',
+            message: errorMessage
+        });
+    } catch (notifyError) {
+        console.error('Failed to show error notification:', notifyError);
     }
 }
 
-// Get user-friendly error message
-function getUserFriendlyError(error) {
-    const messages = {
-        AUTH_ERROR: 'Please refresh the page and try again',
-        CACHE_ERROR: 'Unable to load search data. Please try again later',
-        default: 'An unexpected error occurred'
-    };
-    return messages[error.type] || messages.default;
+/**
+ * Handle errors with proper error messages
+ * @param {Error|string} err - The error object or message
+ * @returns {Promise<void>}
+ */
+async function handleErr(err = 'None') {
+    console.error('Error occurred. Details:', err);
+    const errorMessage = formatErrorMessage(err);
+    await showErrorNotification(errorMessage);
 }
 
 // Notify success
@@ -1307,6 +1344,9 @@ function initializeApp() {
 
                 // Setup form elements with validation
                 const elements = setupFormElements();
+                if (!elements) {
+                    throw new Error('Failed to setup form elements');
+                }
                 
                 // Setup workspace field
                 setupWorkspaceField();
@@ -1336,34 +1376,6 @@ function initializeApp() {
             console.error('Error during app initialization:', error);
             handleErr(error);
         });
-}
-
-/**
- * Handle errors with proper error messages
- * @param {Error|string} err - The error object or message
- * @returns {Promise<void>}
- */
-async function handleErr(err = 'None') {
-    console.error('Error occurred. Details:', err);
-    
-    let errorMessage = 'An error occurred. ';
-    
-    if (err instanceof Error) {
-        errorMessage += err.message;
-    } else if (typeof err === 'string') {
-        errorMessage += err;
-    } else if (err && typeof err === 'object') {
-        errorMessage += err.message || JSON.stringify(err);
-    }
-
-    try {
-        await client.interface.trigger('showNotify', {
-            type: 'error',
-            message: errorMessage
-        });
-    } catch (notifyError) {
-        console.error('Failed to show error notification:', notifyError);
-    }
 }
 
 // App lifecycle handlers
