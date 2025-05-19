@@ -1,5 +1,21 @@
 {
-  "lints": [],
+  "lints": [
+    {
+      "severity": 1,
+      "value": "app\\scripts\\app.js::452: possible deprecated API usage detected",
+      "type": "custom-js-lint"
+    },
+    {
+      "severity": 1,
+      "value": "app\\scripts\\app.js::1337: possible deprecated API usage detected",
+      "type": "custom-js-lint"
+    },
+    {
+      "severity": 1,
+      "value": "app\\scripts\\app.js::1575: 'timeout' declared and assigned in different scopes. Possible asynchronous race condition.",
+      "type": "custom-js-lint"
+    }
+  ],
   "coverageSummary": {},
   "coverage": {
     "app\\scripts\\app.js": {

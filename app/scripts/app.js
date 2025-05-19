@@ -433,94 +433,143 @@ async function fetchAndCacheData(type, fetchFn) {
     }
 }
 
-// Configuration for data types
+// Configuration for data types with updated v2 API endpoints
 const DATA_TYPES = {
     users: {
-        method: 'searchUsers',
-        searchMethod: 'searchUsers',
-        listMethod: 'listUsers',
-        errorMessage: 'Failed to load users'
+        listMethod: 'listRequesters', // Updated to v2 endpoint
+        searchMethod: 'searchRequesters', // Updated to v2 endpoint
+        errorMessage: 'Failed to load users',
+        transform: (data) => data.map(user => ({
+            id: user.id,
+            name: user.first_name + ' ' + user.last_name,
+            email: user.email,
+            type: 'requester'
+        }))
     },
-    departments: {
-        method: 'searchGroups',
-        searchMethod: 'searchGroups',
-        listMethod: 'listGroups',
-        errorMessage: 'Failed to load departments'
-    },
-    services: {
-        method: 'searchServices',
-        searchMethod: 'searchServices',
-        listMethod: 'listServices',
-        errorMessage: 'Failed to load services'
+    agents: {
+        listMethod: 'listAgents', // Already v2 endpoint
+        searchMethod: 'searchAgents', // Already v2 endpoint
+        errorMessage: 'Failed to load agents',
+        transform: (data) => data.map(agent => ({
+            id: agent.id,
+            name: agent.first_name + ' ' + agent.last_name,
+            email: agent.email,
+            type: 'agent'
+        }))
     },
     assets: {
-        method: 'searchAssets',
-        searchMethod: 'searchAssets',
-        listMethod: 'listAssets',
-        errorMessage: 'Failed to load assets'
+        listMethod: 'listAssets', // Already v2 endpoint
+        searchMethod: 'searchAssets', // Already v2 endpoint
+        errorMessage: 'Failed to load assets',
+        transform: (data) => data.map(asset => ({
+            id: asset.id,
+            name: asset.name,
+            type: 'asset'
+        }))
     }
 };
 
 /**
- * Fetch single data type with proper API handling
+ * Fetch all pages of data from Freshservice v2 API
  * @param {string} type - The type of data to fetch
- * @param {string} [searchQuery] - Optional search query
+ * @param {Object} config - Configuration for the data type
+ * @returns {Promise<Array>} All fetched data
+ */
+async function fetchAllPages(type, config) {
+    let allData = [];
+    let page = 1;
+    const perPage = 100;
+    let hasMorePages = true;
+
+    while (hasMorePages) {
+        try {
+            console.log(`Fetching ${type} page ${page}...`);
+            const response = await client.request.invokeTemplate(config.listMethod, {
+                context: {
+                    page: page,
+                    per_page: perPage,
+                    include: 'contact' // Include contact details for users/agents
+                }
+            });
+
+            if (!response || !response.data) {
+                throw new Error(`Invalid response for ${type} on page ${page}`);
+            }
+
+            const pageData = response.data;
+            allData = allData.concat(config.transform(pageData));
+
+            // Check if we have more pages
+            hasMorePages = pageData.length === perPage;
+            page++;
+
+            // Add a small delay between requests to avoid rate limiting
+            if (hasMorePages) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+        } catch (error) {
+            console.error(`Error fetching ${type} page ${page}:`, error);
+            throw error;
+        }
+    }
+
+    console.log(`Fetched total of ${allData.length} ${type}`);
+    return allData;
+}
+
+/**
+ * Fetch single data type with proper API handling and pagination
+ * @param {string} type - The type of data to fetch
  * @returns {Promise<Object>} The fetched data
  */
-function fetchSingleType(type, searchQuery = '') {
+function fetchSingleType(type) {
     const config = DATA_TYPES[type];
     if (!config) {
         console.error(`No configuration found for type: ${type}`);
         return null;
     }
 
-    // Determine if this is a search or list operation
-    const isSearch = searchQuery && searchQuery.trim() !== '';
-    const method = isSearch ? config.searchMethod : config.listMethod;
-
-    // Prepare context based on operation type
-    const context = {
-        page: 1,
-        per_page: 100
-    };
-
-    // Only add query parameter for search operations
-    if (isSearch) {
-        context.query = searchQuery.trim();
-    }
-
-    console.log(`Fetching ${type} using ${isSearch ? 'search' : 'list'} method:`, {
-        method,
-        isSearch,
-        context
-    });
+    console.log(`Starting fetch for ${type} using method: ${config.method}`);
 
     return fetchAndCacheData(type, async () => {
-        return await client.request.invokeTemplate(method, { context });
+        try {
+            const allData = await fetchAllPages(type, config);
+            return allData;
+        } catch (error) {
+            console.error(`Error fetching ${type}:`, error);
+            throw error;
+        }
     });
 }
 
 /**
  * Process single data type with improved error handling
  * @param {string} type - The type of data to process
- * @param {string} [searchQuery] - Optional search query
  * @returns {Promise<Object>} Processing result
  */
-async function processSingleType(type, searchQuery = '') {
+async function processSingleType(type) {
     try {
         if (!type) {
             throw new Error('Type is required');
         }
 
-        const result = await fetchSingleType(type, searchQuery);
+        console.log(`Processing ${type}...`);
+        const result = await fetchSingleType(type);
         if (!result) {
             throw new Error(`No data returned for type: ${type}`);
+        }
+
+        // Store in cache
+        if (window.cacheService) {
+            window.cacheService.setCachedData(`${type}_all`, result);
+            console.log(`Cached ${result.length} ${type}`);
         }
 
         return { 
             type, 
             success: true,
-            data: result
+            data: result,
+            count: result.length
         };
     } catch (error) {
         console.error(`Error processing type ${type}:`, error);
@@ -536,19 +585,23 @@ async function processSingleType(type, searchQuery = '') {
 }
 
 /**
- * Initialize cache with improved error handling
- * @param {string} [searchQuery] - Optional search query
+ * Initialize cache with improved error handling and pagination
  * @returns {Promise<void>}
  */
-async function initializeCache(searchQuery = '') {
+async function initializeCache() {
     try {
-        const types = await validateAndPrepare();
-        if (!types || !Array.isArray(types)) {
-            throw new Error('Invalid types returned from validateAndPrepare');
+        console.log('Starting cache initialization...');
+        
+        // Validate API authentication first
+        if (!await validateApiAuth()) {
+            throw new Error('Authentication validation failed');
         }
 
+        // Process each data type
+        const types = Object.keys(DATA_TYPES);
         console.log('Initializing cache with types:', types);
-        const results = await Promise.all(types.map(type => processSingleType(type, searchQuery)));
+        
+        const results = await Promise.all(types.map(processSingleType));
         
         const failures = results.filter(r => !r.success);
         if (failures.length > 0) {
@@ -563,7 +616,15 @@ async function initializeCache(searchQuery = '') {
             throw errorDetails;
         }
 
+        // Log summary of cached data
+        results.forEach(result => {
+            if (result.success) {
+                console.log(`Successfully cached ${result.count} ${result.type}`);
+            }
+        });
+
         cacheConfig.lastRefresh = Date.now();
+        console.log('Cache initialization completed successfully');
         await notifySuccess('Search data loaded successfully');
     } catch (error) {
         console.error('Cache initialization error:', error);
@@ -986,7 +1047,7 @@ async function handleSearchResults(results, resultsContainer, statusElement, typ
 }
 
 /**
- * Handle search input
+ * Handle search input with debouncing
  * @param {Event} e - Input event
  * @param {HTMLElement} searchInput - Search input element
  * @param {HTMLElement} resultsContainer - Results container
@@ -996,7 +1057,6 @@ async function handleSearchResults(results, resultsContainer, statusElement, typ
  * @param {Set} selectedList - List of selected items
  */
 async function handleSearchInput(e, searchInput, resultsContainer, valueInput, searchFn, type, selectedList = null) {
-    console.log(`Starting search for ${type}...`);
     const query = e.target.value.trim();
     const statusElement = document.getElementById(`${type}Status`);
     
@@ -1006,7 +1066,6 @@ async function handleSearchInput(e, searchInput, resultsContainer, valueInput, s
     }
 
     if (query.length < 2) {
-        console.log('Query too short, clearing results');
         resultsContainer.innerHTML = '';
         updateSearchStatus(statusElement, '', '');
         return;
@@ -1014,16 +1073,17 @@ async function handleSearchInput(e, searchInput, resultsContainer, valueInput, s
 
     try {
         updateSearchStatus(statusElement, 'Searching...', 'loading');
-        console.log(`Making API request for ${type} search...`);
         
-        const results = await searchFn(query, client);
-        console.log(`Received ${results.length} results for ${type}`);
+        // Use live search instead of cached search
+        const results = await performLiveSearch(type, query);
         
-        await handleSearchResults(results, resultsContainer, statusElement, type, selectedList);
-
-        // Log cache statistics
-        const cacheStats = window.cacheService.getCacheStats();
-        console.log('Cache statistics:', cacheStats);
+        if (results.length === 0) {
+            resultsContainer.innerHTML = '<div class="no-results">No results found</div>';
+            updateSearchStatus(statusElement, 'No results found', '');
+        } else {
+            await displayItemResults(results, resultsContainer, selectedList);
+            updateSearchStatus(statusElement, `Found ${results.length} results`, 'success');
+        }
     } catch (error) {
         console.error(`Error in ${type} search:`, error);
         resultsContainer.innerHTML = '<div class="error">Error performing search</div>';
@@ -1224,7 +1284,37 @@ function setupWorkspaceField() {
 }
 
 /**
- * Setup search event listeners
+ * Create debounced search handler
+ * @param {Object} elements - Search elements
+ * @param {string} type - Search type
+ * @param {Set} [selectedList] - Optional selected items list
+ * @returns {Function} Debounced search handler
+ */
+function createDebouncedSearchHandler(elements, type, selectedList = null) {
+    return debounce((e) => {
+        handleSearchInput(e, elements.searchInput, elements.resultsContainer, 
+            elements.valueInput, performLiveSearch, type, selectedList);
+    }, 300);
+}
+
+/**
+ * Setup single search input
+ * @param {Object} elements - Search elements
+ * @param {string} type - Search type
+ * @param {Set} [selectedList] - Optional selected items list
+ */
+function setupSingleSearch(elements, type, selectedList = null) {
+    if (!elements.searchInput || !elements.resultsContainer) {
+        console.warn(`Warning: Missing elements for ${type} search`);
+        return;
+    }
+
+    const debouncedSearch = createDebouncedSearchHandler(elements, type, selectedList);
+    elements.searchInput.addEventListener('input', debouncedSearch);
+}
+
+/**
+ * Setup search event listeners with reduced complexity
  * @param {Object} elements - Form elements
  * @param {Set} selectedServicesList - List of selected services
  */
@@ -1232,62 +1322,30 @@ function setupSearchEventListeners(elements, selectedServicesList) {
     console.log('Setting up search event listeners...');
     
     try {
-        setupRequesterSearch(elements);
-        setupDepartmentSearch(elements);
-        setupServiceSearch(elements, selectedServicesList);
+        // Setup requester search
+        setupSingleSearch({
+            searchInput: elements.requesterSearch,
+            resultsContainer: elements.requesterResults,
+            valueInput: elements.requesterInput
+        }, 'users');
+
+        // Setup department search
+        setupSingleSearch({
+            searchInput: elements.departmentSearch,
+            resultsContainer: elements.departmentResults,
+            valueInput: elements.departmentInput
+        }, 'agents');
+
+        // Setup service search
+        setupSingleSearch({
+            searchInput: elements.serviceSearch,
+            resultsContainer: elements.serviceResults
+        }, 'assets', selectedServicesList);
+
     } catch (error) {
         console.error('Error in setupSearchEventListeners:', error);
         throw error;
     }
-}
-
-// Setup requester search
-function setupRequesterSearch(elements) {
-    if (!elements.requesterSearch || !elements.requesterResults || !elements.requesterInput) {
-        console.warn('Warning: Missing elements for requester search');
-        return;
-    }
-    
-    setupSearchEventListener(
-        elements.requesterSearch,
-        elements.requesterResults,
-        elements.requesterInput,
-        searchUsers,
-        'user'
-    );
-}
-
-// Setup department search
-function setupDepartmentSearch(elements) {
-    if (!elements.departmentSearch || !elements.departmentResults || !elements.departmentInput) {
-        console.warn('Warning: Missing elements for department search');
-        return;
-    }
-    
-    setupSearchEventListener(
-        elements.departmentSearch,
-        elements.departmentResults,
-        elements.departmentInput,
-        searchDepartments,
-        'department'
-    );
-}
-
-// Setup service search
-function setupServiceSearch(elements, selectedServicesList) {
-    if (!elements.serviceSearch || !elements.serviceResults) {
-        console.warn('Warning: Missing elements for service search');
-        return;
-    }
-    
-    setupSearchEventListener(
-        elements.serviceSearch,
-        elements.serviceResults,
-        null,
-        searchItems,
-        'service',
-        selectedServicesList
-    );
 }
 
 // Setup click outside handlers
@@ -1462,4 +1520,58 @@ async function showChangeConfirmation(changeRequest) {
 
 async function showNotify(type, message) {
     await client.interface.trigger('showNotify', { type, message });
+}
+
+/**
+ * Perform live search using Freshservice v2 API
+ * @param {string} type - The type of data to search
+ * @param {string} query - Search query
+ * @returns {Promise<Array>} Search results
+ */
+async function performLiveSearch(type, query) {
+    const config = DATA_TYPES[type];
+    if (!config) {
+        console.error(`No configuration found for type: ${type}`);
+        return [];
+    }
+
+    if (!query || query.trim().length < 2) {
+        return [];
+    }
+
+    try {
+        console.log(`Performing live search for ${type} with query: ${query}`);
+        const response = await client.request.invokeTemplate(config.searchMethod, {
+            context: {
+                query: query.trim(),
+                page: 1,
+                per_page: 10, // Limit results for live search
+                include: 'contact' // Include contact details for users/agents
+            }
+        });
+
+        if (!response || !response.data) {
+            throw new Error(`Invalid response for ${type} search`);
+        }
+
+        const results = config.transform(response.data);
+        console.log(`Found ${results.length} results for ${type} search`);
+        return results;
+    } catch (error) {
+        console.error(`Error in live search for ${type}:`, error);
+        throw error;
+    }
+}
+
+// Add debounce function for search input
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
 }
