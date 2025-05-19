@@ -693,9 +693,67 @@ async function searchItems(query) {
     }
 }
 
-// Display search results with error handling
+/**
+ * Create HTML for a user item
+ * @param {Object} item - User item data
+ * @returns {string} HTML string
+ */
+function createUserItemHtml(item) {
+    return `
+        <div class="user-info">
+            <div class="user-name">${item.display_name || item.name}</div>
+            <div class="user-type">${item.type.charAt(0).toUpperCase() + item.type.slice(1)}</div>
+            ${item.email ? `<div class="user-email">${item.email}</div>` : ''}
+        </div>
+    `;
+}
+
+/**
+ * Create HTML for a service/asset item
+ * @param {Object} item - Service/asset item data
+ * @returns {string} HTML string
+ */
+function createServiceItemHtml(item) {
+    return `
+        <div class="user-info">
+            <div class="user-name">${item.name}</div>
+            <div class="user-email">${item.type}</div>
+        </div>
+    `;
+}
+
+/**
+ * Handle item selection
+ * @param {Object} item - Selected item
+ * @param {HTMLElement} container - Results container
+ * @param {Set} selectedList - List of selected items
+ */
+function handleItemSelection(item, container, selectedList) {
+    console.log('Item selected:', item);
+    if (selectedList) {
+        if (!selectedList.has(item.id)) {
+            selectedList.add(item.id);
+            updateSelectedServices(selectedList);
+        }
+    } else {
+        // For user selection, update the input value
+        const searchInput = container.closest('.form-group').querySelector('input[type="text"]');
+        const valueInput = container.closest('.form-group').querySelector('input[type="hidden"]');
+        if (searchInput && valueInput) {
+            searchInput.value = item.display_name || item.name;
+            valueInput.value = item.id;
+        }
+    }
+    container.classList.remove('active');
+}
+
+/**
+ * Display search results
+ * @param {Array} items - Array of items to display
+ * @param {HTMLElement} container - Container to display results in
+ * @param {Set} selectedList - List of selected items
+ */
 async function displayItemResults(items, container, selectedList) {
-    console.log('Displaying item results:', { items, container, selectedList });
     try {
         await Promise.resolve();
         container.innerHTML = '';
@@ -709,35 +767,25 @@ async function displayItemResults(items, container, selectedList) {
         if (items.length === 0) {
             console.log('No items found to display');
             container.innerHTML = '<div class="no-results">No items found</div>';
-        } else {
-            console.log('Rendering items:', items);
-            items.forEach(item => {
-                if (!item || !item.id || !item.name) {
-                    console.error('Invalid item data:', item);
-                    return;
-                }
-
-                const div = document.createElement('div');
-                div.className = 'lookup-item';
-                div.innerHTML = `
-                    <div class="user-info">
-                        <div class="user-name">${item.name}</div>
-                        <div class="user-email">${item.type}</div>
-                    </div>
-                `;
-                
-                div.addEventListener('click', () => {
-                    console.log('Item selected:', item);
-                    if (!selectedList.has(item.id)) {
-                        selectedList.add(item.id);
-                        updateSelectedServices(selectedList);
-                    }
-                    container.classList.remove('active');
-                });
-                
-                container.appendChild(div);
-            });
+            return;
         }
+
+        console.log('Rendering items:', items);
+        items.forEach(item => {
+            if (!item || !item.id || !item.name) {
+                console.error('Invalid item data:', item);
+                return;
+            }
+
+            const div = document.createElement('div');
+            div.className = 'lookup-item';
+            div.innerHTML = (item.type === 'agent' || item.type === 'requester') 
+                ? createUserItemHtml(item)
+                : createServiceItemHtml(item);
+            
+            div.addEventListener('click', () => handleItemSelection(item, container, selectedList));
+            container.appendChild(div);
+        });
         
         container.classList.add('active');
     } catch (error) {
@@ -747,6 +795,91 @@ async function displayItemResults(items, container, selectedList) {
             stack: error.stack
         });
         container.innerHTML = '<div class="no-results">Error displaying results</div>';
+    }
+}
+
+/**
+ * Update search status
+ * @param {HTMLElement} statusElement - Status element
+ * @param {string} message - Status message
+ * @param {string} className - Status class
+ */
+function updateSearchStatus(statusElement, message, className) {
+    statusElement.innerHTML = message;
+    statusElement.className = `search-status ${className}`;
+}
+
+/**
+ * Handle search results
+ * @param {Array} results - Search results
+ * @param {HTMLElement} resultsContainer - Results container
+ * @param {HTMLElement} statusElement - Status element
+ * @param {string} type - Search type
+ * @param {Set} selectedList - List of selected items
+ */
+async function handleSearchResults(results, resultsContainer, statusElement, type, selectedList) {
+    if (!Array.isArray(results)) {
+        throw new Error(`Invalid results format for ${type} search`);
+    }
+
+    if (results.length === 0) {
+        resultsContainer.innerHTML = '<div class="no-results">No results found</div>';
+        updateSearchStatus(statusElement, 'No results found', '');
+    } else {
+        await displayItemResults(results, resultsContainer, selectedList);
+        updateSearchStatus(statusElement, `Found ${results.length} results`, 'success');
+        console.log('Results displayed successfully');
+    }
+}
+
+/**
+ * Handle search input
+ * @param {Event} e - Input event
+ * @param {HTMLElement} searchInput - Search input element
+ * @param {HTMLElement} resultsContainer - Results container
+ * @param {HTMLElement} valueInput - Value input element
+ * @param {Function} searchFn - Search function
+ * @param {string} type - Search type
+ * @param {Set} selectedList - List of selected items
+ */
+async function handleSearchInput(e, searchInput, resultsContainer, valueInput, searchFn, type, selectedList = null) {
+    console.log(`Starting search for ${type}...`);
+    const query = e.target.value.trim();
+    const statusElement = document.getElementById(`${type}Status`);
+    
+    if (!statusElement) {
+        console.warn(`Status element for ${type} not found`);
+        return;
+    }
+
+    if (query.length < 2) {
+        console.log('Query too short, clearing results');
+        resultsContainer.innerHTML = '';
+        updateSearchStatus(statusElement, '', '');
+        return;
+    }
+
+    try {
+        updateSearchStatus(statusElement, 'Searching...', 'loading');
+        console.log(`Making API request for ${type} search...`);
+        
+        const results = await searchFn(query, client);
+        console.log(`Received ${results.length} results for ${type}`);
+        
+        await handleSearchResults(results, resultsContainer, statusElement, type, selectedList);
+
+        // Log cache statistics
+        const cacheStats = window.cacheService.getCacheStats();
+        console.log('Cache statistics:', cacheStats);
+    } catch (error) {
+        console.error(`Error in ${type} search:`, error);
+        resultsContainer.innerHTML = '<div class="error">Error performing search</div>';
+        updateSearchStatus(statusElement, error.message || 'Error performing search', 'error');
+        
+        await client.interface.trigger('showNotify', {
+            type: 'error',
+            message: `Failed to search ${type}: ${error.message || 'Unknown error'}`
+        });
     }
 }
 
@@ -937,73 +1070,21 @@ function setupWorkspaceField() {
     }
 }
 
-// Handle search input
-async function handleSearchInput(e, searchInput, resultsContainer, valueInput, searchFn, type, selectedList = null) {
-    console.log(`Starting search for ${type}...`);
-    const query = e.target.value.trim();
-    const statusElement = document.getElementById(`${type}Status`);
-    
-    if (query.length < 2) {
-        console.log('Query too short, clearing results');
-        resultsContainer.innerHTML = '';
-        statusElement.innerHTML = '';
-        statusElement.className = 'search-status';
-        return;
-    }
-
-    try {
-        // Update status to loading
-        statusElement.innerHTML = 'Searching...';
-        statusElement.className = 'search-status loading';
-        console.log(`Making API request for ${type} search...`);
-        
-        const results = await searchFn(query, client);
-        console.log(`Received ${results.length} results for ${type}`);
-        
-        if (results.length === 0) {
-            resultsContainer.innerHTML = '<div class="no-results">No results found</div>';
-            statusElement.innerHTML = 'No results found';
-            statusElement.className = 'search-status';
-        } else {
-            await displayItemResults(results, resultsContainer, selectedList);
-            statusElement.innerHTML = `Found ${results.length} results`;
-            statusElement.className = 'search-status success';
-            console.log('Results displayed successfully');
-        }
-
-        // Log cache statistics
-        const cacheStats = window.cacheService.getCacheStats();
-        console.log('Cache statistics:', cacheStats);
-    } catch (error) {
-        console.error(`Error in ${type} search:`, error);
-        resultsContainer.innerHTML = '<div class="error">Error performing search</div>';
-        statusElement.innerHTML = 'Error performing search';
-        statusElement.className = 'search-status error';
-    }
-}
-
-// Setup individual search event listener with validation
-function setupSearchEventListener(searchInput, resultsContainer, valueInput, searchFn, type, selectedList = null) {
-    if (!searchInput || !resultsContainer) {
-        console.warn(`Warning: Missing elements for ${type} search setup`);
-        return;
-    }
+/**
+ * Setup search event listeners
+ * @param {Object} elements - Form elements
+ * @param {Set} selectedServicesList - List of selected services
+ */
+function setupSearchEventListeners(elements, selectedServicesList) {
+    console.log('Setting up search event listeners...');
     
     try {
-        searchInput.addEventListener('input', async function(e) {
-            try {
-                await handleSearchInput(e, searchInput, resultsContainer, valueInput, searchFn, type, selectedList);
-            } catch (error) {
-                console.error(`Error in ${type} search handler:`, error);
-                await client.interface.trigger('showNotify', {
-                    type: 'error',
-                    message: `Error performing ${type} search`
-                });
-            }
-        });
-        console.log(`${type} search event listener setup complete`);
+        setupRequesterSearch(elements);
+        setupDepartmentSearch(elements);
+        setupServiceSearch(elements, selectedServicesList);
     } catch (error) {
-        console.error(`Error setting up ${type} search event listener:`, error);
+        console.error('Error in setupSearchEventListeners:', error);
+        throw error;
     }
 }
 
@@ -1054,20 +1135,6 @@ function setupServiceSearch(elements, selectedServicesList) {
         'service',
         selectedServicesList
     );
-}
-
-// Setup search event listeners
-function setupSearchEventListeners(elements, selectedServicesList) {
-    console.log('Setting up search event listeners...');
-    
-    try {
-        setupRequesterSearch(elements);
-        setupDepartmentSearch(elements);
-        setupServiceSearch(elements, selectedServicesList);
-    } catch (error) {
-        console.error('Error in setupSearchEventListeners:', error);
-        throw error;
-    }
 }
 
 // Setup click outside handlers
